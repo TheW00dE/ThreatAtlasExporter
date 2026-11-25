@@ -329,9 +329,51 @@ Validation adds asset checks: missing files, unsupported formats, `replaces_diag
 - **Image:** `python:3.12-slim` base plus Pango, HarfBuzz and fonts. Runs as non-root UID, entrypoint `tae`. Works with `readOnlyRootFilesystem` (writes only to `/out` and `/tmp`). Multi-stage build; image is scanned in CI.
 - **Config in containers:** no keyring. Settings come from env vars (`TAE_URL`, `TAE_TOKEN`, `TAE_CA_BUNDLE`) or a mounted `tae.toml`. Report definitions and rules come from a ConfigMap, the token from a Secret, and the internal CA from a ConfigMap or Secret mount.
 - **PDFs on manual runs only (decided):** nothing scheduled or automatic builds a PDF. Validation can still run automatically, since it produces no PDF.
-- **Kubernetes:** an on-demand `Job` template that runs `tae report build` (or `tae export` for several products) and writes to a PVC, started by hand with `kubectl create -f report-job.yaml`. There is no `CronJob` for reports. Optional publish step: upload the PDFs as GitLab generic packages or to an S3-compatible bucket (to be decided later).
+- **Kubernetes:** the report portal (§5.8) runs as a `Deployment` in the namespace. Users generate reports from it by hand and download them there. An on-demand `Job` template (`kubectl create -f report-job.yaml`) is kept for admins and writes into the same storage. There is no `CronJob` for reports.
 - **GitLab CI (this repo):** stages are `lint` → `test` → `build` → `integration` (ThreatAtlas started via docker-compose as a service) → `release`, which tags the image in the GitLab registry.
 - **GitLab CI (consumers):** a reusable `.gitlab-ci` template that runs `tae validate` automatically (JUnit and Code Quality reports) and has a **manual** report job (`when: manual`, never on scheduled pipelines, doesn't block the pipeline) that builds the PDF as an artifact.
+
+### 5.8 Report portal (`tae serve`)
+
+Decided: generated PDFs are stored and offered for download through a small web app in the Kubernetes namespace. Every report is kept.
+
+**What users can do**
+- See the products they're allowed to see, each with its stored reports (newest first): date, who generated it, report definition, validation verdict, PDF size.
+- Click **Generate report** for a product, choosing one of the configured report definitions. This is the manual run. The app pulls fresh data, validates, renders and stores the result, and the page shows progress until the download link appears.
+- Download a PDF. Also available per report: the snapshot it was built from and the validation findings (JSON), as audit evidence.
+- When a report definition says `on_failure: block` and validation fails, no PDF is stored. The run is listed as *blocked*, with its findings.
+
+**How it is built**
+- Same image and code base: a `tae serve` command. FastAPI with server-rendered Jinja pages and no JavaScript framework. It reuses the pull, validate and report code as it is.
+- **Storage:** a PersistentVolume mounted at `/data`. One directory per run: `reports/<product-id>/<UTC timestamp>-<run-id>/` holding `report.pdf`, `snapshot.json`, `findings.json` and `run.json` (who, when, definition, tool version, snapshot hash, status). The directory listing is the index, with no database. Writes are atomic (temporary directory, then rename). Reports are kept forever; deleting is an admin action outside the app.
+- **Runs:** an in-process queue with one worker and at most one run per product at a time. A run that is still in progress when the pod restarts is marked *interrupted*. Nothing runs on a schedule, and the app has no scheduler.
+- **Configuration:** report definitions, rules files and templates from a ConfigMap (`/config/reports/*.yaml`, each offered by name in the UI). Connection settings come from the usual `TAE_*` env vars, and tokens from a Secret.
+- **Security:**
+  - Users sign in through single sign-on in front of the app.
+  - Every generate and download is written to an audit log on stdout as JSON: who, what, when.
+  - CSRF protection on the generate form, and strict security headers (CSP, no framing).
+  - PDFs are served with `Content-Disposition: attachment`. Stored paths are validated to block path traversal.
+  - The app runs as non-root with a read-only root filesystem; only `/data` and `/tmp` are writable.
+  - A NetworkPolicy limits egress to ThreatAtlas.
+- **Kubernetes manifests (`deploy/k8s/`):** Deployment (1 replica; the volume is ReadWriteOnce), Service, Ingress, PVC, ConfigMap, Secret template, NetworkPolicy, and the admin `report-job.yaml`. Health and readiness endpoints for probes.
+
+**Permissions: each user's own ThreatAtlas token (decided)**
+- The portal has no service token of its own. A user signs in by entering their personal ThreatAtlas API token (`ta_…`). The portal checks it with `GET /api/auth/me` and then acts exactly as that user, so ThreatAtlas's own roles and product sharing decide everything. An admin sees all products, and a viewer can't see products that aren't shared with them.
+- **Generating** pulls data with the user's token, so a user can only generate reports for products they can read.
+- **Listing and downloading stored reports** is re-checked against ThreatAtlas on every request (`GET /api/products/{id}` with the user's token, cached for a minute). A report stays visible only to people who can currently see that product. If someone loses access in ThreatAtlas, they lose access to its stored reports too.
+- **Token handling:**
+  - The token is held server-side in memory, never written to disk or logs.
+  - The browser only gets a random session ID in a cookie (`HttpOnly`, `Secure`, `SameSite=Strict`).
+  - Sessions expire after inactivity (8 hours, configurable), on sign-out, and when the pod restarts.
+  - A token that ThreatAtlas rejects (401) ends the session immediately.
+- The audit log records the ThreatAtlas username for every generate and download.
+
+**Single sign-on (to be confirmed, so both modes are supported):** the ThreatAtlas token is what grants access to data. SSO in front is an extra gate on who can reach the portal at all. It can be set by configuration:
+- `auth.sso: oidc`: the portal logs users in against an OIDC provider (issuer URL, client ID, client secret from a Secret).
+- `auth.sso: proxy`: an oauth2-proxy or ingress OIDC in front passes the identity in a header. The header is trusted only from configured proxy addresses.
+- `auth.sso: none`: token sign-in only, for testing or when network access is already restricted.
+
+With SSO on, the SSO identity is logged alongside the ThreatAtlas user. Optionally, the portal refuses tokens whose email doesn't match the SSO email (`auth.require_matching_email`).
 
 ## 6. Configuration
 
@@ -361,6 +403,7 @@ The token is resolved in this order: `--token`, then the `TAE_TOKEN` env var (th
 | 3 ✅ | Validate | Rule engine, 21 built-in rules (the three priority checks as errors), YAML custom rules, table/JSON/JUnit/Code Quality output, `--fail-level`, configurable `on_failure` | No |
 | 4 ✅ | Report MVP | Definition schema, query layer, Jinja2/WeasyPrint renderer, sections: cover, TOC, summary, product info, **rendered DFD diagrams**, threat table, mitigation table, accepted risks, findings | No |
 | 5 | Report advanced | **Per-product asset folders** (images, PDF appendices, diagram replacement), threat badges on diagrams, risk heatmap and charts, branding, custom templates (corporate layout once approved), `report init/schema`, `tae export` one-shot and multi-product, **k8s manifests**, GitLab consumer template | No |
+| 5b | Report portal | `tae serve`: sign-in with the user's ThreatAtlas token, product list, generate on demand, run status, download PDF, snapshot and findings with per-request access checks; PVC storage (keep all); optional OIDC or proxy SSO; audit log, CSRF and security headers; k8s Deployment/Service/Ingress/PVC/NetworkPolicy manifests | Yes, to test end to end |
 | 6 | Write ops (imperative) | CRUD for products, diagrams (+ versions, JSON import/export), custom frameworks, models, catalog threats and mitigations, diagram-threat and diagram-mitigation instances; **`tae risks` accept/approve/reject/pending**; dry-run; name resolution | Yes |
 | 7 | Declarative apply | `tae apply` with diff, prune, idempotency, covering frameworks → products → diagrams → models → threats/mitigations → acceptance requests | Yes |
 
@@ -390,11 +433,15 @@ Phases 0–5 deliver the reporting goal; phases 6–7 deliver the create/update 
 | 9 | Write ops | Both imperative commands and declarative `apply`. Also covers custom frameworks, diagrams (with versions) and risk acceptance/approval |
 | 10 | CI / registry | GitLab CI, GitLab container registry |
 | 11 | When PDFs are made | Manual runs only. Validation may run automatically; no scheduled or automatic job builds PDFs |
+| 12 | Where PDFs are kept | Stored by a small web app in the Kubernetes namespace (`tae serve`, §5.8), which users also generate and download them from |
+| 13 | Retention | Keep every report, with its snapshot and findings |
+| 14 | Portal permissions | Each user signs in with their own ThreatAtlas API token; the portal acts as them, and access to stored reports is re-checked against ThreatAtlas on each request |
+| 15 | Portal SSO | Not decided yet; build both built-in OIDC and trusted-proxy headers (plus none), chosen by configuration |
 
 ### Still open
 
 - The corporate report layout and required sections (waiting on approval).
-- Where PDFs from manual Kubernetes runs should go: PVC only, GitLab generic packages, S3-compatible bucket, or something else.
+- Report portal: which single sign-on setup fronts apps in the namespace (both options will be supported; this decides the example manifests).
 - Whether the instance uses a public or internal CA (if internal, the CA bundle gets mounted).
 - How the asset folders are sourced in Kubernetes: Git repo checkout, PVC, or ConfigMap.
 - The GitLab repo. This GitHub repo is the working location for now; mirroring or migration can be set up later.
