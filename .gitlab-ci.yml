@@ -1,0 +1,126 @@
+# GitLab CI for ThreatAtlasExporter.
+#
+# Stages: lint → test → build → release
+#   - lint:    ruff (lint + format check), mypy
+#   - test:    pytest with JUnit and Cobertura coverage reports (shown in merge requests)
+#   - build:   container image pushed to the GitLab registry, tagged with the commit SHA
+#   - release: on tags, re-tag the image with the git tag; on the default branch, tag "latest"
+#
+# Runners behind a TLS-intercepting proxy: set the CI/CD variable EXTRA_CA_CERT
+# (type "File") to the proxy CA. It is used by uv and passed to the image build as a secret.
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
+      when: never
+    - if: $CI_COMMIT_BRANCH
+    - if: $CI_COMMIT_TAG
+
+stages:
+  - lint
+  - test
+  - build
+  - release
+
+variables:
+  PYTHON_IMAGE: python:3.12-slim
+  UV_VERSION: "0.11.32"
+  UV_CACHE_DIR: "$CI_PROJECT_DIR/.uv-cache"
+  UV_LINK_MODE: copy
+  UV_PYTHON_DOWNLOADS: never
+  IMAGE: "$CI_REGISTRY_IMAGE"
+  DOCKER_VERSION: "27"
+
+.python:
+  image: $PYTHON_IMAGE
+  cache:
+    key:
+      files: [uv.lock]
+    paths: [.uv-cache]
+  before_script:
+    - if [ -n "$EXTRA_CA_CERT" ]; then export SSL_CERT_FILE="$EXTRA_CA_CERT" PIP_CERT="$EXTRA_CA_CERT"; fi
+    - pip install --no-cache-dir --disable-pip-version-check "uv==${UV_VERSION}"
+    - uv sync --frozen
+  after_script:
+    - uv cache prune --ci || true
+
+ruff:
+  extends: .python
+  stage: lint
+  script:
+    # Code Quality report for the MR widget, then a readable run that fails the job.
+    - uv run ruff check --output-format=gitlab --output-file=gl-code-quality-report.json . || true
+    - uv run ruff check .
+    - uv run ruff format --check .
+  artifacts:
+    when: always
+    reports:
+      codequality: gl-code-quality-report.json
+
+mypy:
+  extends: .python
+  stage: lint
+  script:
+    - uv run mypy
+
+pytest:
+  extends: .python
+  stage: test
+  parallel:
+    matrix:
+      - PYTHON_IMAGE: ["python:3.11-slim", "python:3.12-slim", "python:3.13-slim"]
+  script:
+    - uv run pytest --junitxml=report.xml --cov --cov-report=term --cov-report=xml:coverage.xml
+  coverage: '/^TOTAL.*\s+(\d+(?:\.\d+)?)%/'
+  artifacts:
+    when: always
+    reports:
+      junit: report.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
+
+.docker:
+  image: docker:${DOCKER_VERSION}
+  services:
+    - name: docker:${DOCKER_VERSION}-dind
+      alias: docker
+  variables:
+    DOCKER_TLS_CERTDIR: "/certs"
+  before_script:
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+
+build-image:
+  extends: .docker
+  stage: build
+  script:
+    - SECRET_ARG=""
+    - if [ -n "$EXTRA_CA_CERT" ]; then SECRET_ARG="--secret id=ca,src=$EXTRA_CA_CERT"; fi
+    - docker buildx create --use
+    - >
+      docker buildx build $SECRET_ARG
+      --build-arg PYTHON_IMAGE=python:3.12-slim
+      --build-arg UV_VERSION=$UV_VERSION
+      --label org.opencontainers.image.revision=$CI_COMMIT_SHA
+      --label org.opencontainers.image.source=$CI_PROJECT_URL
+      --tag "$IMAGE:$CI_COMMIT_SHA"
+      --push .
+    # Smoke test the pushed image.
+    - docker run --rm "$IMAGE:$CI_COMMIT_SHA" --version
+
+tag-latest:
+  extends: .docker
+  stage: release
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  script:
+    - docker buildx imagetools create --tag "$IMAGE:latest" "$IMAGE:$CI_COMMIT_SHA"
+
+tag-release:
+  extends: .docker
+  stage: release
+  rules:
+    - if: $CI_COMMIT_TAG
+  script:
+    - docker buildx imagetools create --tag "$IMAGE:$CI_COMMIT_TAG" "$IMAGE:$CI_COMMIT_SHA"

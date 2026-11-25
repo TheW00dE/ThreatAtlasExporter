@@ -1,6 +1,13 @@
 # ThreatAtlasExporter — Structure & Implementation Plan
 
-Status: **decisions recorded (§9)**. Waiting on a test instance and approval to share the corporate report layout.
+Status: **phases 0 and 1 done** (scaffold, Docker image, GitLab CI, API client, config, read-only commands). Next: phase 2 (pull), once a test instance is available to record real fixtures. Phases 3 and 4 can go ahead with fixtures in the meantime.
+
+Notes from implementing phases 0–1:
+- Typer ≥ 0.29 vendors click privately, so the code never imports `click` directly.
+- Tokens can also come from a file (`TAE_TOKEN_FILE`, or `token_file` in a profile), which is how a Kubernetes Secret gets mounted. A token in the config file is rejected outright.
+- In the container, config is read from `/config/tae/config.toml` (`XDG_CONFIG_HOME=/config`).
+- The WeasyPrint system libraries are added to the image in phase 4, not before.
+- Every value from the server is printed as plain text, never as Rich markup.
 
 ## 1. Goal
 
