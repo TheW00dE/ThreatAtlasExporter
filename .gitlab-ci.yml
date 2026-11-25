@@ -67,6 +67,11 @@ mypy:
 pytest:
   extends: .python
   stage: test
+  before_script:
+    # WeasyPrint's system libraries, for the PDF rendering tests.
+    - apt-get update -qq && apt-get install -y -qq --no-install-recommends
+      libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 fontconfig fonts-dejavu-core >/dev/null
+    - !reference [.python, before_script]
   parallel:
     matrix:
       - PYTHON_IMAGE: ["python:3.11-slim", "python:3.12-slim", "python:3.13-slim"]

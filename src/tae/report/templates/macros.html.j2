@@ -1,0 +1,46 @@
+{% macro sev(value) -%}
+<span class="sev sev-{{ value or 'none' }}">{{ value or "unscored" }}</span>
+{%- endmacro %}
+
+{% macro status(value) -%}
+<span class="status st-{{ value }}">{{ value }}</span>
+{%- endmacro %}
+
+{% macro score(t) -%}
+{% if t.risk_score is not none %}{{ t.risk_score }}{% else %}<span class="muted">—</span>{% endif %}
+{%- endmacro %}
+
+{% macro opt(value) -%}
+{% if value is not none and value != "" %}{{ value }}{% else %}<span class="muted">—</span>{% endif %}
+{%- endmacro %}
+
+{% set THREAT_HEADERS = {
+  "ref": "Ref", "threat": "Threat", "category": "Category", "element": "Element", "diagram": "Diagram",
+  "framework": "Framework", "likelihood": "L", "impact": "I", "score": "Score", "severity": "Severity",
+  "residual": "Residual", "status": "Status", "mitigations": "Mitigations", "description": "Description",
+  "comments": "Comments"} %}
+
+{% macro threat_header(col) -%}
+<th class="col-{{ col }}">{{ THREAT_HEADERS[col] }}</th>
+{%- endmacro %}
+
+{% macro threat_cell(t, col) -%}
+{% if col == "ref" %}<td class="col-ref ref">{{ t.ref }}</td>
+{% elif col == "threat" %}<td class="col-threat"><strong>{{ t.name }}</strong></td>
+{% elif col == "category" %}<td>{{ opt(t.category) }}</td>
+{% elif col == "element" %}<td class="col-element">{{ t.element_label }}</td>
+{% elif col == "diagram" %}<td>{{ t.diagram.name }}</td>
+{% elif col == "framework" %}<td>{{ opt(t.framework_name) }}</td>
+{% elif col == "likelihood" %}<td class="num">{{ opt(t.record.likelihood) }}</td>
+{% elif col == "impact" %}<td class="num">{{ opt(t.record.impact) }}</td>
+{% elif col == "score" %}<td class="num">{{ score(t) }}</td>
+{% elif col == "severity" %}<td>{{ sev(t.severity) }}</td>
+{% elif col == "residual" %}<td>{% if t.residual_score is not none %}{{ sev(t.residual_severity) }} <span class="muted">({{ t.residual_score }})</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+{% elif col == "status" %}<td>{{ status(t.status) }}</td>
+{% elif col == "mitigations" %}<td class="col-mitigations">
+  {% for mi in t.mitigations %}<div class="mit-line"><span class="ref">{{ mi.ref }}</span> {{ mi.name }} {{ status(mi.status) }}</div>{% else %}<span class="muted">none</span>{% endfor %}
+</td>
+{% elif col == "description" %}<td class="col-description">{{ opt(t.description) }}</td>
+{% elif col == "comments" %}<td class="col-description">{{ opt(t.record.comments) }}</td>
+{% endif %}
+{%- endmacro %}

@@ -1,0 +1,5 @@
+<ul class="toc">
+{% for e in s.data.entries %}
+  <li><a href="#{{ e.anchor }}">{% if e.number %}<span class="num">{{ e.number }}</span>{% endif %}{{ e.title }}</a></li>
+{% endfor %}
+</ul>

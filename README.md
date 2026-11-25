@@ -2,15 +2,30 @@
 
 A command-line tool for [OWASP ThreatAtlas](https://github.com/OWASP/www-project-threatatlas). It:
 
-- **pulls** products, diagrams, threat models, threats and mitigations from a ThreatAtlas instance,
-- **validates** them against built-in and custom rules *(planned)*,
-- **renders** a PDF report per product from a configurable report definition *(planned)*,
+- **pulls** a product's diagrams, threat models, threats and mitigations into a snapshot file,
+- **validates** them against built-in and custom rules ([docs/validation-rules.md](docs/validation-rules.md)),
+- **renders** a PDF report per product from a configurable report definition ([docs/report-definition.md](docs/report-definition.md)),
 - **creates and updates** threat-model data from the command line or from YAML *(planned)*.
 
 See [docs/PLAN.md](docs/PLAN.md) for the design and roadmap.
 
-> **Status:** early development. The API client, configuration and read-only commands work today.
-> Pull, validate, report and write commands come in later phases.
+> **Status:** pull, validate and PDF reports work, tested against fixtures modelled on
+> ThreatAtlas v0.9.x; not yet tested against a live instance. Write commands come in later phases.
+
+## Quick start
+
+```sh
+export TAE_URL=https://threatatlas.example.com TAE_TOKEN=ta_...
+tae products list
+tae pull --product "Payments API" -f payments.snapshot.json
+tae validate payments.snapshot.json
+tae report init report.yaml          # then edit it
+tae report build payments.snapshot.json -d report.yaml -f payments-threat-model.pdf
+```
+
+`tae report build --product "Payments API"` does all three steps in one go. The snapshot
+file records exactly what a report was built from, so reports can be rebuilt and audited
+later.
 
 ## Install
 
@@ -19,11 +34,18 @@ See [docs/PLAN.md](docs/PLAN.md) for the design and roadmap.
 ```sh
 docker build -t threatatlas-exporter .
 docker run --rm -e TAE_URL=https://threatatlas.example.com -e TAE_TOKEN threatatlas-exporter products list
+docker run --rm -e TAE_URL -e TAE_TOKEN -v "$PWD/out:/out" threatatlas-exporter \
+  report build --product "Payments API" -f /out/payments.pdf
 ```
+
+Builds behind a TLS-intercepting proxy can pass its CA as a build secret:
+`docker build --secret id=ca,src=proxy-ca.pem -t threatatlas-exporter .`
 
 ### From source
 
-Requires Python 3.11+ and [uv](https://docs.astral.sh/uv/).
+Requires Python 3.11+ and [uv](https://docs.astral.sh/uv/). PDF output also needs Pango and
+HarfBuzz (`apt-get install libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0`, or
+`brew install pango`); everything else works without them.
 
 ```sh
 uv sync
@@ -83,6 +105,13 @@ Tokens are never read from the config file, so it can be committed or mounted fr
 ## Commands
 
 ```text
+tae pull        --product ID|NAME [-f FILE | --stdout]
+tae validate    [SNAPSHOT | --product ID|NAME] [--rules FILE] [--format table|json|junit|codequality]
+                [--fail-level error|warning|info|never] [--as-of DATE] [-f FILE]
+tae rules       [--rules FILE]
+tae report      build [SNAPSHOT | --product ID|NAME] [-d DEFINITION] [-f PDF] [--html FILE]
+                      [--rules FILE] [--on-failure block|annotate|warn|ignore] [--findings-file FILE]
+                init [FILE] | check FILE | schema [-f FILE]
 tae auth        login | status | logout
 tae config      show | path
 tae products    list | get ID | security-status ID
@@ -105,11 +134,12 @@ Global options: `--profile`, `--url`, `--token`, `--ca-bundle`, `--no-verify-tls
 | 0 | Success |
 | 1 | Unexpected error |
 | 2 | Invalid command-line usage |
-| 3 | Configuration problem (no URL, no token, bad config file) |
+| 3 | Configuration or input problem (no URL or token; invalid config, snapshot, rules or report definition; PDF libraries missing) |
 | 4 | Authentication or permission error (401/403) |
 | 5 | Not found (404) |
 | 6 | Cannot connect (DNS, TLS, timeout, redirect) |
 | 7 | Other API error |
+| 10 | Checks failed: validation findings at or above the fail level, or a report blocked or annotated by validation |
 
 ## Development
 
@@ -121,7 +151,9 @@ uv run mypy
 ```
 
 CI runs on GitLab (`.gitlab-ci.yml`): lint, type-check, tests with coverage, then a container
-image build pushed to the GitLab registry.
+image build pushed to the GitLab registry. For product repositories, a reusable pipeline that
+validates in merge requests and publishes the PDF on the default branch is in
+[examples/gitlab/threat-model.gitlab-ci.yml](examples/gitlab/threat-model.gitlab-ci.yml).
 
 ## License
 

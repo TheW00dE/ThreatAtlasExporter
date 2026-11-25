@@ -15,9 +15,11 @@ from typer.core import TyperGroup
 from tae.client import ThreatAtlasClient
 from tae.client import errors as e
 from tae.config import ConfigError, Overrides, Settings, resolve
+from tae.errors import EnvironmentProblem, InputError
 from tae.output import OutputFormat
+from tae.snapshot.collector import ProductNotFound
 
-console = Console()
+console = Console(soft_wrap=True)
 err_console = Console(stderr=True, soft_wrap=True)
 
 
@@ -30,6 +32,7 @@ class ExitCode(IntEnum):
     NOT_FOUND = 5
     CONNECTION = 6
     API = 7
+    CHECKS_FAILED = 10  # validation failed, or a report was blocked by validation
 
 
 @dataclass
@@ -80,8 +83,10 @@ def fail(message: str, code: ExitCode = ExitCode.ERROR) -> NoReturn:
 
 
 def _exit_code_for(exc: Exception) -> ExitCode:
-    if isinstance(exc, ConfigError):
+    if isinstance(exc, ConfigError | InputError | EnvironmentProblem):
         return ExitCode.CONFIG
+    if isinstance(exc, ProductNotFound):
+        return ExitCode.NOT_FOUND
     if isinstance(exc, e.AuthenticationError | e.PermissionDenied):
         return ExitCode.AUTH
     if isinstance(exc, e.NotFound):
@@ -109,7 +114,7 @@ class ErrorHandlingGroup(TyperGroup):
     def invoke(self, ctx: Any) -> Any:
         try:
             return super().invoke(ctx)
-        except (ConfigError, e.ThreatAtlasError) as exc:
+        except (ConfigError, InputError, EnvironmentProblem, e.ThreatAtlasError) as exc:
             if logging.getLogger().isEnabledFor(logging.DEBUG):
                 err_console.print_exception()
             err_console.print(f"[red]Error:[/red] {escape(str(exc))}", highlight=False)

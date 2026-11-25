@@ -1,13 +1,17 @@
 # ThreatAtlasExporter — Structure & Implementation Plan
 
-Status: **phases 0 and 1 done** (scaffold, Docker image, GitLab CI, API client, config, read-only commands). Next: phase 2 (pull), once a test instance is available to record real fixtures. Phases 3 and 4 can go ahead with fixtures in the meantime.
+Status: **phases 0–4 done** (scaffold, Docker image, GitLab CI, API client, pull/snapshots, validation, PDF reports). Everything is tested against fixtures modelled on ThreatAtlas v0.9.x; testing against a live instance is next. Then phase 5 (asset folders, multi-product export, Kubernetes manifests).
 
-Notes from implementing phases 0–1:
+Notes from implementation:
 - Typer ≥ 0.29 vendors click privately, so the code never imports `click` directly.
 - Tokens can also come from a file (`TAE_TOKEN_FILE`, or `token_file` in a profile), which is how a Kubernetes Secret gets mounted. A token in the config file is rejected outright.
 - In the container, config is read from `/config/tae/config.toml` (`XDG_CONFIG_HOME=/config`).
-- The WeasyPrint system libraries are added to the image in phase 4, not before.
-- Every value from the server is printed as plain text, never as Rich markup.
+- A diagram mitigation's `threat_id` refers to the *diagram threat* (`diagram_threats.id`), not the catalog threat.
+- Phase 2 (pull) was built ahead of phases 3–4 because both depend on the snapshot. Its fixtures should be re-recorded from a real instance.
+- Validation exits with code 10 when checks fail, so CI can tell "checks failed" from "tool broke" (1–7). `annotate` mode writes the PDF and still exits 10.
+- PDF rendering uses WeasyPrint ≥ 70 behind a URL fetcher that only allows `data:` URIs and template files, so server data can never make the renderer fetch remote URLs or read local files.
+- The Docker runtime stage installs Pango and HarfBuzz from Debian over HTTPS. Its apt step could not be run in the development sandbox because deb.debian.org was blocked there; the Python build stage was verified.
+- GitLab gets JUnit and Code Quality outputs; SARIF was dropped.
 
 ## 1. Goal
 
@@ -350,14 +354,16 @@ The token is resolved in this order: `--token`, then the `TAE_TOKEN` env var (th
 
 | # | Milestone | Deliverables | Needs live instance? |
 |---|---|---|---|
-| 0 | Scaffold | pyproject (uv), package layout, Typer root, ruff/mypy/pytest, **Dockerfile**, **`.gitlab-ci.yml`** (lint/test/build), README | No |
-| 1 | Client & auth | Config/profiles/env vars, keyring, HTTP client with pagination, retries, CA bundle and typed errors, Pydantic API models (from upstream `openapi.json`), `tae auth`, read-only `list/get` for every resource | Build with upstream fixtures; verify on instance |
-| 2 | Pull | Collector, snapshot model and linker, `tae pull` (product / all / diagram), fixtures recorded from the test instance | Yes, to record fixtures |
-| 3 | Validate | Rule engine, built-in rules (the three priority checks first), YAML custom rules, table/JSON/JUnit/Code Quality output, `--fail-on`, configurable `on_failure` | No |
-| 4 | Report MVP | Definition schema, query layer, Jinja2/WeasyPrint renderer, sections: cover, TOC, summary, product info, **rendered DFD diagrams**, threat table, mitigation table, accepted risks, findings | No |
+| 0 ✅ | Scaffold | pyproject (uv), package layout, Typer root, ruff/mypy/pytest, **Dockerfile**, **`.gitlab-ci.yml`** (lint/test/build), README | No |
+| 1 ✅ | Client & auth | Config/profiles/env vars, keyring, HTTP client with pagination, retries, CA bundle and typed errors, Pydantic API models (from upstream `openapi.json`), `tae auth`, read-only `list/get` for every resource | Build with upstream fixtures; verify on instance |
+| 2 ✅* | Pull | Collector, snapshot model and linker, `tae pull` (product / all / diagram), fixtures recorded from the test instance | Yes, to record fixtures |
+| 3 ✅ | Validate | Rule engine, 21 built-in rules (the three priority checks as errors), YAML custom rules, table/JSON/JUnit/Code Quality output, `--fail-level`, configurable `on_failure` | No |
+| 4 ✅ | Report MVP | Definition schema, query layer, Jinja2/WeasyPrint renderer, sections: cover, TOC, summary, product info, **rendered DFD diagrams**, threat table, mitigation table, accepted risks, findings | No |
 | 5 | Report advanced | **Per-product asset folders** (images, PDF appendices, diagram replacement), threat badges on diagrams, risk heatmap and charts, branding, custom templates (corporate layout once approved), `report init/schema`, `tae export` one-shot and multi-product, **k8s manifests**, GitLab consumer template | No |
 | 6 | Write ops (imperative) | CRUD for products, diagrams (+ versions, JSON import/export), custom frameworks, models, catalog threats and mitigations, diagram-threat and diagram-mitigation instances; **`tae risks` accept/approve/reject/pending**; dry-run; name resolution | Yes |
 | 7 | Declarative apply | `tae apply` with diff, prune, idempotency, covering frameworks → products → diagrams → models → threats/mitigations → acceptance requests | Yes |
+
+✅ done; * built and tested against fixtures, real fixtures still to be recorded.
 
 Phases 0–5 deliver the reporting goal; phases 6–7 deliver the create/update goal. Phases 0, 1, 3 and 4 can be built before the test instance is ready, using fixtures derived from the upstream schemas and seed data.
 

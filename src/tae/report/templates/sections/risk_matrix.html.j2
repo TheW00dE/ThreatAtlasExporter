@@ -1,0 +1,19 @@
+{% macro grid(rows, caption) %}
+<table class="matrix">
+  <caption>{{ caption }}</caption>
+  <tr><th rowspan="6" class="axis-y"><span>Likelihood</span></th></tr>
+  {% for row in rows %}
+  <tr>
+    <th class="axis-label">{{ row[0].likelihood }}</th>
+    {% for c in row %}<td class="cell sev-bg-{{ c.severity }}">{% if c.count %}{{ c.count }}{% endif %}</td>{% endfor %}
+  </tr>
+  {% endfor %}
+  <tr><td></td><td></td>{% for i in range(1, 6) %}<th class="axis-label">{{ i }}</th>{% endfor %}</tr>
+  <tr><td></td><td></td><th colspan="5" class="axis-x">Impact</th></tr>
+</table>
+{% endmacro %}
+<div class="matrices">
+  {{ grid(s.data.inherent, "Inherent risk") }}
+  {% if s.data.residual %}{{ grid(s.data.residual, "Residual risk") }}{% endif %}
+</div>
+<p class="note">Cells show the number of threats at each likelihood × impact. Colours follow ThreatAtlas's bands: score ≥ 20 critical, ≥ 12 high, ≥ 6 medium, otherwise low.{% if s.data.unscored %} {{ s.data.unscored }} threat(s) are not scored and are not shown.{% endif %}</p>

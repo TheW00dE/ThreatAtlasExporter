@@ -10,7 +10,7 @@ INSTANCE_COLUMNS = [
     Column("Mitigation", lambda m: m.mitigation.name, 40),
     col("Diagram", "diagram_id"),
     col("Element", "element_id", 20),
-    col("Threat", "threat_id"),
+    col("Diagram threat", "threat_id"),
     col("Status", "status"),
 ]
 

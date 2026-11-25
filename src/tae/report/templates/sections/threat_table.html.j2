@@ -1,0 +1,19 @@
+{% set d = s.data %}
+{% if not d.count %}<p class="muted">No threats match this section's filters.</p>{% endif %}
+{% for g in d.groups %}
+  {% if g.title %}<h2>{{ g.title }}</h2>{% endif %}
+  <table class="data threats">
+    <thead><tr>{% for c in d.columns %}{{ m.threat_header(c) }}{% endfor %}</tr></thead>
+    <tbody>
+    {% for t in g.items %}
+      <tr class="sev-row-{{ t.severity or 'none' }}">{% for c in d.columns %}{{ m.threat_cell(t, c) }}{% endfor %}</tr>
+      {% if d.details and (t.description or t.record.comments) %}
+      <tr class="detail-row"><td></td><td colspan="{{ d.columns|length - 1 }}" class="col-description">
+        {% if t.description %}<div>{{ t.description }}</div>{% endif %}
+        {% if t.record.comments %}<div><em>Comments:</em> {{ t.record.comments }}</div>{% endif %}
+      </td></tr>
+      {% endif %}
+    {% endfor %}
+    </tbody>
+  </table>
+{% endfor %}

@@ -4,7 +4,7 @@
     "diagram_id": 31,
     "model_id": 41,
     "mitigation_id": 201,
-    "threat_id": 101,
+    "threat_id": 501,
     "element_id": "n-db",
     "element_type": "node",
     "status": "implemented",

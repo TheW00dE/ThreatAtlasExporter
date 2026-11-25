@@ -1,0 +1,44 @@
+{% set d = s.data %}
+{% if d.filters %}
+<p class="note">This report is filtered: {{ d.filters|join("; ") }}.</p>
+{% endif %}
+<div class="kpis">
+{% for label, value, hint in d.kpis %}
+  <div class="kpi"><div class="kpi-value">{{ value }}</div><div class="kpi-label">{{ label }}</div><div class="kpi-hint">{{ hint }}</div></div>
+{% endfor %}
+</div>
+
+<h2>Threats by severity</h2>
+<img class="chart" src="{{ d.severity_chart }}" alt="Threats by severity">
+
+<div class="two-col">
+  <div>
+    <h3>Threat status</h3>
+    <table class="compact">{% for st, n in d.statuses %}<tr><td>{{ m.status(st) }}</td><td class="num">{{ n }}</td></tr>{% endfor %}</table>
+  </div>
+  <div>
+    <h3>Mitigation status</h3>
+    <table class="compact">{% for st, n in d.mitigation_statuses %}<tr><td>{{ m.status(st) }}</td><td class="num">{{ n }}</td></tr>{% endfor %}</table>
+  </div>
+</div>
+
+<h2>Top open risks</h2>
+{% if d.top_risks %}
+<table class="data">
+  <thead><tr><th>Ref</th><th>Threat</th><th>Element</th><th>Diagram</th><th>Severity</th><th>Score</th></tr></thead>
+  <tbody>
+  {% for t in d.top_risks %}
+    <tr><td class="ref">{{ t.ref }}</td><td>{{ t.name }}</td><td>{{ t.element_label }}</td><td>{{ t.diagram.name }}</td><td>{{ m.sev(t.severity) }}</td><td class="num">{{ m.score(t) }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="ok">No open threats.</p>
+{% endif %}
+
+<h2>Validation</h2>
+{% if d.validation.failed %}
+<p class="bad">Validation failed with {{ d.validation.error }} error(s), {{ d.validation.warning }} warning(s) and {{ d.validation.info }} informational finding(s).</p>
+{% else %}
+<p class="ok">Validation passed ({{ d.validation.warning }} warning(s), {{ d.validation.info }} informational finding(s)).</p>
+{% endif %}

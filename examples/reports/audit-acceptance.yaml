@@ -1,0 +1,32 @@
+# Evidence pack for a risk acceptance review: every accepted risk, its approval, and the
+# findings that would stop sign-off. Fails hard if any acceptance is incomplete.
+title: "Risk Acceptance Review"
+subtitle: "{{ product.name }}, owner {{ product.owner_name }}"
+
+branding:
+  classification: "CONFIDENTIAL"
+  footer: "Risk acceptance evidence"
+
+validation:
+  on_failure: block
+  fail_level: error
+
+sections:
+  - type: cover
+  - type: toc
+  - type: text
+    title: "Purpose"
+    body: |
+      This document records the risks accepted for {{ product.name }}, who approved them and when
+      they must be reviewed again. It was generated from the ThreatAtlas data pulled at
+      {{ meta.pulled_at }}.
+  - type: accepted_risks
+  - type: threat_table
+    title: "All accepted threats"
+    filters: { statuses: [accepted] }
+    group_by: none
+    columns: [ref, threat, diagram, element, score, severity, residual]
+    details: true
+  - type: product_info
+  - type: validation_findings
+    min_level: warning
