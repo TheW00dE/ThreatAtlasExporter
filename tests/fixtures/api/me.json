@@ -1,0 +1,11 @@
+{
+  "id": 1,
+  "email": "analyst@example.com",
+  "username": "analyst",
+  "full_name": "Ana Lyst",
+  "is_active": true,
+  "role": "standard",
+  "effective_role": "standard",
+  "ldap_provider": null,
+  "created_at": "2026-11-01T10:00:00"
+}

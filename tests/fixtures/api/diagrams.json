@@ -1,0 +1,95 @@
+[
+  {
+    "id": 31,
+    "product_id": 12,
+    "name": "Payment flow",
+    "description": "Card authorisation",
+    "diagram_data": {
+      "nodes": [
+        {
+          "id": "n-user",
+          "type": "custom",
+          "position": {
+            "x": 0,
+            "y": 0
+          },
+          "data": {
+            "label": "Customer",
+            "type": "external"
+          }
+        },
+        {
+          "id": "n-api",
+          "type": "custom",
+          "position": {
+            "x": 250,
+            "y": 0
+          },
+          "data": {
+            "label": "Payments API",
+            "type": "process"
+          }
+        },
+        {
+          "id": "n-db",
+          "type": "custom",
+          "position": {
+            "x": 500,
+            "y": 0
+          },
+          "data": {
+            "label": "Transactions DB",
+            "type": "datastore"
+          }
+        },
+        {
+          "id": "b-dmz",
+          "type": "boundary",
+          "position": {
+            "x": 200,
+            "y": -50
+          },
+          "data": {
+            "label": "DMZ",
+            "type": "boundary"
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e-1",
+          "source": "n-user",
+          "target": "n-api",
+          "sourceHandle": "right",
+          "targetHandle": "left",
+          "label": "HTTPS card data"
+        },
+        {
+          "id": "e-2",
+          "source": "n-api",
+          "target": "n-db",
+          "sourceHandle": "right",
+          "targetHandle": "left",
+          "label": "SQL"
+        }
+      ]
+    },
+    "can_edit": true,
+    "current_version": 3,
+    "auto_version": true,
+    "created_at": "2026-11-01T10:00:00",
+    "updated_at": "2026-11-01T10:00:00"
+  },
+  {
+    "id": 32,
+    "product_id": 12,
+    "name": "Admin flow",
+    "description": null,
+    "diagram_data": null,
+    "can_edit": true,
+    "current_version": 0,
+    "auto_version": true,
+    "created_at": "2026-11-01T10:00:00",
+    "updated_at": "2026-11-01T10:00:00"
+  }
+]

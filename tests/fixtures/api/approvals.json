@@ -1,0 +1,38 @@
+[
+  {
+    "id": 502,
+    "diagram_threat_id": 502,
+    "threat_name": "Spoofed client",
+    "category": "Spoofing",
+    "element_id": "e-1",
+    "diagram_id": 31,
+    "diagram_name": "Payment flow",
+    "product_id": 12,
+    "product_name": "Payments API",
+    "accepted_by_name": "Ana Lyst",
+    "accepted_at": "2026-11-01T10:00:00",
+    "acceptance_justification": "Compensating fraud controls",
+    "acceptance_review_date": "2027-05-01T00:00:00",
+    "acceptance_review_status": null,
+    "acceptance_review_note": null,
+    "acceptance_reviewed_at": null
+  },
+  {
+    "id": 503,
+    "diagram_threat_id": 503,
+    "threat_name": "Log tampering",
+    "category": "Spoofing",
+    "element_id": "e-1",
+    "diagram_id": 31,
+    "diagram_name": "Payment flow",
+    "product_id": 12,
+    "product_name": "Payments API",
+    "accepted_by_name": "Ana Lyst",
+    "accepted_at": "2026-11-01T10:00:00",
+    "acceptance_justification": "Compensating fraud controls",
+    "acceptance_review_date": "2027-05-01T00:00:00",
+    "acceptance_review_status": "approved",
+    "acceptance_review_note": null,
+    "acceptance_reviewed_at": "2026-11-01T10:00:00"
+  }
+]

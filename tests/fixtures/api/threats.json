@@ -1,0 +1,32 @@
+[
+  {
+    "id": 101,
+    "framework_id": 1,
+    "name": "SQL injection",
+    "description": "Untrusted input reaches a SQL query",
+    "category": "Tampering",
+    "user_id": null,
+    "is_custom": false,
+    "is_modified": false,
+    "original_name": null,
+    "original_description": null,
+    "original_category": null,
+    "created_at": "2026-11-01T10:00:00",
+    "updated_at": "2026-11-01T10:00:00"
+  },
+  {
+    "id": 102,
+    "framework_id": 1,
+    "name": "Spoofed client",
+    "description": "Attacker impersonates a customer",
+    "category": "Spoofing",
+    "user_id": null,
+    "is_custom": false,
+    "is_modified": false,
+    "original_name": null,
+    "original_description": null,
+    "original_category": null,
+    "created_at": "2026-11-01T10:00:00",
+    "updated_at": "2026-11-01T10:00:00"
+  }
+]

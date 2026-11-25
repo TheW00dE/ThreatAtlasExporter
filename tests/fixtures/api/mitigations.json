@@ -1,0 +1,17 @@
+[
+  {
+    "id": 201,
+    "framework_id": 1,
+    "name": "Parameterised queries",
+    "description": "Use bound parameters",
+    "category": "Tampering",
+    "user_id": null,
+    "is_custom": false,
+    "is_modified": false,
+    "original_name": null,
+    "original_description": null,
+    "original_category": null,
+    "created_at": "2026-11-01T10:00:00",
+    "updated_at": "2026-11-01T10:00:00"
+  }
+]
