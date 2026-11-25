@@ -92,8 +92,8 @@ ThreatAtlasExporter/
 │           └── architecture-overview.svg
 ├── Dockerfile
 ├── .gitlab-ci.yml
-├── deploy/k8s/                     # CronJob, ConfigMap, Secret template, PVC example
-│   ├── cronjob.yaml
+├── deploy/k8s/                     # on-demand Job, ConfigMap, Secret template, PVC example
+│   ├── report-job.yaml
 │   ├── configmap.yaml
 │   └── secret.example.yaml
 ├── src/tae/
@@ -328,9 +328,10 @@ Validation adds asset checks: missing files, unsupported formats, `replaces_diag
 
 - **Image:** `python:3.12-slim` base plus Pango, HarfBuzz and fonts. Runs as non-root UID, entrypoint `tae`. Works with `readOnlyRootFilesystem` (writes only to `/out` and `/tmp`). Multi-stage build; image is scanned in CI.
 - **Config in containers:** no keyring. Settings come from env vars (`TAE_URL`, `TAE_TOKEN`, `TAE_CA_BUNDLE`) or a mounted `tae.toml`. Report definitions and rules come from a ConfigMap, the token from a Secret, and the internal CA from a ConfigMap or Secret mount.
-- **Kubernetes:** an example `CronJob` that runs `tae export --all --definition /config/report.yaml --output /out` on a schedule, writing to a PVC. A one-off `Job` template is also provided. Optional publish step: upload the PDFs as GitLab generic packages or to an S3-compatible bucket (to be decided later).
+- **PDFs on manual runs only (decided):** nothing scheduled or automatic builds a PDF. Validation can still run automatically, since it produces no PDF.
+- **Kubernetes:** an on-demand `Job` template that runs `tae report build` (or `tae export` for several products) and writes to a PVC, started by hand with `kubectl create -f report-job.yaml`. There is no `CronJob` for reports. Optional publish step: upload the PDFs as GitLab generic packages or to an S3-compatible bucket (to be decided later).
 - **GitLab CI (this repo):** stages are `lint` → `test` → `build` → `integration` (ThreatAtlas started via docker-compose as a service) → `release`, which tags the image in the GitLab registry.
-- **GitLab CI (consumers):** a reusable `.gitlab-ci` template that runs `tae validate` in merge requests (JUnit and Code Quality reports) and `tae export` on the default branch (PDF as an artifact).
+- **GitLab CI (consumers):** a reusable `.gitlab-ci` template that runs `tae validate` automatically (JUnit and Code Quality reports) and has a **manual** report job (`when: manual`, never on scheduled pipelines, doesn't block the pipeline) that builds the PDF as an artifact.
 
 ## 6. Configuration
 
@@ -388,11 +389,12 @@ Phases 0–5 deliver the reporting goal; phases 6–7 deliver the create/update 
 | 8 | Test instance | User will set one up. Until then, development runs against fixtures built from upstream ThreatAtlas v0.9.x |
 | 9 | Write ops | Both imperative commands and declarative `apply`. Also covers custom frameworks, diagrams (with versions) and risk acceptance/approval |
 | 10 | CI / registry | GitLab CI, GitLab container registry |
+| 11 | When PDFs are made | Manual runs only. Validation may run automatically; no scheduled or automatic job builds PDFs |
 
 ### Still open
 
 - The corporate report layout and required sections (waiting on approval).
-- Where scheduled PDFs should go from Kubernetes: PVC only, GitLab generic packages, S3-compatible bucket, or something else.
+- Where PDFs from manual Kubernetes runs should go: PVC only, GitLab generic packages, S3-compatible bucket, or something else.
 - Whether the instance uses a public or internal CA (if internal, the CA bundle gets mounted).
 - How the asset folders are sourced in Kubernetes: Git repo checkout, PVC, or ConfigMap.
 - The GitLab repo. This GitHub repo is the working location for now; mirroring or migration can be set up later.

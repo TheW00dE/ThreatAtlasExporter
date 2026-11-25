@@ -41,3 +41,20 @@ def test_package_example_matches_repository_copy() -> None:
 def test_gitlab_template_is_valid_yaml() -> None:
     data = yaml.safe_load((EXAMPLES / "gitlab" / "threat-model.gitlab-ci.yml").read_text())
     assert {"threat-model:validate", "threat-model:report"} <= set(data)
+
+
+def test_gitlab_template_only_builds_pdfs_manually() -> None:
+    """PDFs are produced on manual runs only: every rule of a job that runs
+    `tae report build` must be manual or never."""
+    data = yaml.safe_load((EXAMPLES / "gitlab" / "threat-model.gitlab-ci.yml").read_text())
+    report_jobs = [
+        (name, job)
+        for name, job in data.items()
+        if isinstance(job, dict) and any("report build" in str(line) for line in job.get("script", []))
+    ]
+    assert report_jobs
+    for name, job in report_jobs:
+        whens = [rule.get("when") for rule in job["rules"]]
+        assert set(whens) <= {"manual", "never"}, name
+        manual = [rule for rule in job["rules"] if rule.get("when") == "manual"]
+        assert all(rule.get("allow_failure") is True for rule in manual), name

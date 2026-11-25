@@ -11,6 +11,9 @@ tae report build snap.json -d report.yaml -f payments.pdf
 tae report build --product "Payments API" -d report.yaml     # pull live, then build
 ```
 
+PDFs are only produced on manual runs: by running this command, or by starting the
+report job by hand in the GitLab template. Nothing scheduled or automatic builds them.
+
 Without `--definition`, the built-in full report is used. Every report covers **one
 product**. Relative paths in the definition (logo, rules, template) are resolved against
 the definition file's directory.

@@ -152,7 +152,7 @@ uv run mypy
 
 CI runs on GitLab (`.gitlab-ci.yml`): lint, type-check, tests with coverage, then a container
 image build pushed to the GitLab registry. For product repositories, a reusable pipeline that
-validates in merge requests and publishes the PDF on the default branch is in
+validates automatically and builds the PDF only when the report job is started by hand is in
 [examples/gitlab/threat-model.gitlab-ci.yml](examples/gitlab/threat-model.gitlab-ci.yml).
 
 ## License
