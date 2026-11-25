@@ -1,0 +1,40 @@
+{% extends "base.html.j2" %}
+{% set back_path = "/products/" ~ run.product_id ~ "/runs/" ~ run.run_id %}
+{% set r = run %}
+{% block head %}{% if not run.finished %}<meta http-equiv="refresh" content="2">{% endif %}{% endblock %}
+{% block title %}{{ run.product_name }} report · ThreatAtlas Reports{% endblock %}
+{% block main %}
+<p class="crumbs"><a href="/">Products</a> / <a href="/products/{{ run.product_id }}">{{ run.product_name }}</a> /</p>
+<h1>{{ run.preset_label }}</h1>
+
+<section class="card">
+  <p><span class="status big st-{{ run.status }}">{{ run.status }}</span> {{ run.message }}</p>
+  {% if not run.finished %}
+  <div class="progress" aria-hidden="true"><div></div></div>
+  <p class="hint">This page updates by itself.</p>
+  {% endif %}
+  {% if "report.pdf" in run.files %}
+  <p class="buttons">
+    <a class="button primary" href="/products/{{ run.product_id }}/runs/{{ run.run_id }}/report.pdf" target="_blank" rel="noopener">Open PDF</a>
+    <a class="button" href="/products/{{ run.product_id }}/runs/{{ run.run_id }}/report.pdf?download=1">Download PDF</a>
+  </p>
+  {% endif %}
+</section>
+
+<table class="facts">
+  <tr><th>Product</th><td>{{ run.product_name }}</td></tr>
+  <tr><th>Started</th><td>{{ run.started_at|when }}</td></tr>
+  <tr><th>Finished</th><td>{{ run.finished_at|when }}</td></tr>
+  <tr><th>By</th><td>{{ run.user or "—" }}</td></tr>
+  <tr><th>ThreatAtlas</th><td>{{ run.source_url or "—" }}</td></tr>
+  <tr><th>Validation</th><td>{% include "_verdict.html.j2" %}</td></tr>
+  {% if run.engine %}<tr><th>PDF engine</th><td>{{ run.engine }}</td></tr>{% endif %}
+  {% if run.snapshot_hash %}<tr><th>Snapshot</th><td><code>{{ run.snapshot_hash[:12] }}</code></td></tr>{% endif %}
+  <tr><th>Saved in</th><td><code>{{ folder }}</code></td></tr>
+  <tr><th>Evidence</th><td>
+    {% if "snapshot.json" in run.files %}<a href="/products/{{ run.product_id }}/runs/{{ run.run_id }}/snapshot.json?download=1">snapshot.json</a>{% endif %}
+    {% if "findings.json" in run.files %} · <a href="/products/{{ run.product_id }}/runs/{{ run.run_id }}/findings.json?download=1">findings.json</a>{% endif %}
+    {% if not run.files %}—{% endif %}
+  </td></tr>
+</table>
+{% endblock %}

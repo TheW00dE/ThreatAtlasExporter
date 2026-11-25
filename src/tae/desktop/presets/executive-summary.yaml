@@ -1,0 +1,30 @@
+# A short report for management: summary, matrix, diagrams and the open high risks.
+title: "Threat Model Summary"
+subtitle: "{{ product.name }}"
+
+branding:
+  organisation: "Example Corp"
+  classification: "INTERNAL"
+
+filters:
+  min_severity: high
+  include_unscored: false
+
+validation:
+  rules: custom-rules.yaml
+  on_failure: annotate
+
+sections:
+  - type: cover
+  - type: executive_summary
+  - type: risk_matrix
+    residual: true
+  - type: diagram
+    element_table: false
+  - type: threat_table
+    title: "High and critical threats"
+    group_by: status
+    columns: [ref, threat, element, severity, status, mitigations]
+  - type: accepted_risks
+  - type: validation_findings
+    min_level: error

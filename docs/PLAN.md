@@ -13,6 +13,13 @@ Notes from implementation:
 - The Docker runtime stage installs Pango and HarfBuzz from Debian over HTTPS. Its apt step could not be run in the development sandbox because deb.debian.org was blocked there; the Python build stage was verified.
 - GitLab gets JUnit and Code Quality outputs; SARIF was dropped.
 
+> **Desktop proof of concept (branch `claude/desktop-poc`):** a fork of the tool that runs on
+> a user's own Windows or Linux computer: `tae desktop`, a local web page where the user
+> signs in with their own ThreatAtlas token, generates reports on demand, and downloads
+> them. Reports are kept in a local folder. PDFs use WeasyPrint or, on Windows, headless
+> Microsoft Edge. It reuses the pull, validate and report code, and tries out the report
+> portal's user flow (§5.8) before building the server version. See `docs/DESKTOP.md`.
+
 ## 1. Goal
 
 A command-line tool (`tae`) that:

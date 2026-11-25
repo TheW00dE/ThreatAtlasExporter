@@ -8,7 +8,7 @@ from pathlib import Path
 import typer
 
 from tae import __version__
-from tae.cli import auth, config_cmd, pull, report_cmd, validate_cmd
+from tae.cli import auth, config_cmd, desktop_cmd, pull, report_cmd, validate_cmd
 from tae.cli.common import ErrorHandlingGroup, console, get_state
 from tae.cli.resources import diagrams, frameworks, mitigations, models, products, risks, threats
 from tae.output import OutputFormat
@@ -36,6 +36,7 @@ app.command("pull")(pull.pull)
 app.command("validate")(validate_cmd.validate)
 app.command("rules")(validate_cmd.rules_list)
 app.add_typer(report_cmd.app, name="report")
+app.command("desktop")(desktop_cmd.desktop)
 
 
 def _version(value: bool) -> None:

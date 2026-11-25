@@ -134,8 +134,14 @@ def _profile_from_dict(name: str, data: dict[str, Any], path: Path) -> Profile:
         raise ConfigError(f"{path}: [profiles.{name}]: {exc}") from exc
 
 
-def resolve(overrides: Overrides, env: Mapping[str, str] | None = None) -> Settings:
-    """Combine CLI flags, env vars and the config file into ``Settings``."""
+def resolve(
+    overrides: Overrides, env: Mapping[str, str] | None = None, *, require_url: bool = True
+) -> Settings:
+    """Combine CLI flags, env vars and the config file into ``Settings``.
+
+    With ``require_url=False`` a missing URL is allowed (``Settings.url`` is then empty
+    and no token is looked up); the desktop app asks for it on its sign-in page.
+    """
     env = os.environ if env is None else env
 
     explicit_path = overrides.config or (Path(env["TAE_CONFIG"]) if env.get("TAE_CONFIG") else None)
@@ -148,15 +154,18 @@ def resolve(overrides: Overrides, env: Mapping[str, str] | None = None) -> Setti
     profile = cfg.profiles.get(profile_name or "", Profile(name=profile_name or "default"))
 
     url = overrides.url or env.get("TAE_URL") or profile.url
-    if not url:
+    if not url and not require_url:
+        url = ""
+    elif not url:
         raise ConfigError(
             "No ThreatAtlas URL configured. Pass --url, set TAE_URL, or add a profile to "
             f"{cfg.path or default_config_path(env)}."
         )
-    try:
-        url = normalize_base_url(url)
-    except ValueError as exc:
-        raise ConfigError(str(exc)) from exc
+    if url:
+        try:
+            url = normalize_base_url(url)
+        except ValueError as exc:
+            raise ConfigError(str(exc)) from exc
 
     verify_tls = overrides.verify_tls
     if verify_tls is None and env.get("TAE_VERIFY_TLS"):
@@ -182,7 +191,7 @@ def resolve(overrides: Overrides, env: Mapping[str, str] | None = None) -> Setti
         except ValueError as exc:
             raise ConfigError(f"TAE_TIMEOUT must be a number, got {env['TAE_TIMEOUT']!r}") from exc
 
-    token, source = resolve_token(overrides.token, env, profile, url)
+    token, source = resolve_token(overrides.token, env, profile, url) if url else (None, None)
     return Settings(
         profile=profile_name,
         url=url,

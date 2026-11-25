@@ -156,3 +156,9 @@ def test_empty_token_file_is_an_error(tmp_path: Path) -> None:
     empty.write_text("\n")
     with pytest.raises(ConfigError, match="is empty"):
         resolve(Overrides(url="https://a.test"), env={"TAE_TOKEN_FILE": str(empty)})
+
+
+def test_url_optional_for_desktop(tmp_path: Path) -> None:
+    s = resolve(Overrides(), env={"XDG_CONFIG_HOME": str(tmp_path), "TAE_TOKEN": "ta_x"}, require_url=False)
+    assert s.url == ""
+    assert s.token is None  # no URL, so no token is looked up

@@ -12,6 +12,11 @@
 :root { --primary: {{ branding.primary_color }}; --accent: {{ branding.accent_color }}; }
 @page { size: {{ definition.page_size }}; }
 @page landscape { size: {{ definition.page_size }} landscape; }
+{#- Header and footer text is written into the page CSS directly (not via string-set),
+    which works the same in WeasyPrint and in Chromium/Edge. -#}
+{% set footer_text = (branding.organisation or "") ~ (" · " if branding.organisation and branding.footer else "") ~ (branding.footer or "") %}
+@page { @top-left { content: {{ (product.name ~ " — " ~ title)|css_string }}; } }
+{% if footer_text %}@page { @bottom-left { content: {{ footer_text|css_string }}; } }{% endif %}
 {% if branding.classification %}
 @page { @top-center { content: {{ branding.classification|css_string }}; } }
 @page landscape { @top-center { content: {{ branding.classification|css_string }}; } }
@@ -23,20 +28,12 @@
 </style>
 </head>
 <body>
-{% macro running() %}
-<div class="running-title">{{ product.name }} — {{ title }}</div>
-<div class="running-footer">{{ branding.organisation or "" }}{% if branding.organisation and branding.footer %} · {% endif %}{{ branding.footer or "" }}</div>
-{% endmacro %}
-{#- The running strings must sit on the first page; on the cover when there is one. -#}
-{% set has_cover = sections and sections[0].type == "cover" %}
-{% if not has_cover %}{{ running() }}{% endif %}
 {% for s in sections %}
 <section id="{{ s.anchor }}" class="section section-{{ s.type }}{% if s.page_break %} page-break{% endif %}">
 {% if s.type != "cover" and s.title %}
   <h1>{% if s.number %}<span class="num">{{ s.number }}</span>{% endif %}{{ s.title }}</h1>
 {% endif %}
 {% include "sections/" ~ s.type ~ ".html.j2" %}
-{% if loop.first and has_cover %}{{ running() }}{% endif %}
 </section>
 {% endfor %}
 </body>

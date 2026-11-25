@@ -1,0 +1,22 @@
+{% extends "base.html.j2" %}
+{% block main %}
+<h1>Products</h1>
+<p class="lead">Pick a product to generate a report or download an earlier one.</p>
+{% if not products %}
+<p class="empty">Your ThreatAtlas account can't see any products yet.</p>
+{% else %}
+<table class="list">
+  <thead><tr><th>Product</th><th>Lifecycle</th><th>Owner</th><th class="num">Saved reports</th></tr></thead>
+  <tbody>
+  {% for p in products %}
+    <tr>
+      <td><a href="/products/{{ p.id }}"><strong>{{ p.name }}</strong></a>{% if p.business_area %}<div class="muted">{{ p.business_area }}</div>{% endif %}</td>
+      <td>{{ p.status or "—" }}</td>
+      <td>{{ p.owner_name or "—" }}</td>
+      <td class="num">{{ counts.get(p.id, 0) }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endblock %}

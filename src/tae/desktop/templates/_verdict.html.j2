@@ -1,0 +1,4 @@
+{% if r.validation and r.validation.passed is not none %}
+  {% if r.validation.passed %}<span class="verdict ok">passed</span>{% else %}<span class="verdict bad">failed</span>{% endif %}
+  <span class="muted">{{ r.validation.error|default(0) }} errors, {{ r.validation.warning|default(0) }} warnings</span>
+{% else %}<span class="muted">—</span>{% endif %}

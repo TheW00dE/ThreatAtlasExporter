@@ -7,6 +7,7 @@ Handles the base URL, bearer authentication, TLS settings, retries with backoff,
 from __future__ import annotations
 
 import logging
+import ssl
 import time
 from collections.abc import Callable, Iterator
 from typing import Any
@@ -46,7 +47,7 @@ class HttpClient:
         token: str | None,
         *,
         timeout: float = 30.0,
-        verify: bool | str = True,
+        verify: bool | str | ssl.SSLContext = True,
         retries: int = 3,
         backoff: float = 0.5,
         transport: httpx.BaseTransport | None = None,

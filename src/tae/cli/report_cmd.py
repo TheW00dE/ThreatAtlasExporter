@@ -13,6 +13,7 @@ from tae.cli.common import ExitCode, console, err_console, fail, get_state
 from tae.cli.inputs import obtain_snapshot
 from tae.cli.pull import slugify
 from tae.report.definition import OnFailure, ReportDefinition, json_schema
+from tae.report.pdf import PdfEngine, write_pdf
 from tae.report.render import ReportBlocked, build_report
 from tae.validate.output import render_table, summary_line
 
@@ -45,6 +46,12 @@ def build(
         None, "--findings-file", help="Also write validation findings (JSON)."
     ),
     as_of: str | None = typer.Option(None, "--as-of", help="Report date (YYYY-MM-DD). [default: today]"),
+    pdf_engine: PdfEngine = typer.Option(
+        PdfEngine.auto,
+        "--pdf-engine",
+        help="weasyprint, browser (Edge/Chrome headless), or auto: WeasyPrint if its libraries load, "
+        "else a browser. [env: TAE_BROWSER sets the browser]",
+    ),
 ) -> None:
     """Validate a product's threat model and render it as a PDF report.
 
@@ -75,7 +82,7 @@ def build(
     if html:
         html.write_text(out.html, encoding="utf-8")
     path = output_file or Path(f"{slugify(snap.product.name)}-threat-model-{day.isoformat()}.pdf")
-    out.write_pdf(path)
+    write_pdf(out, path, pdf_engine)
 
     err_console.print(
         summary_line(out.validation, report_def.validation.fail_level), markup=False, highlight=False

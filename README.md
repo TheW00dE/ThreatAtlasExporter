@@ -12,6 +12,16 @@ See [docs/PLAN.md](docs/PLAN.md) for the design and roadmap.
 > **Status:** pull, validate and PDF reports work, tested against fixtures modelled on
 > ThreatAtlas v0.9.x; not yet tested against a live instance. Write commands come in later phases.
 
+## Desktop proof of concept (this branch)
+
+This branch (`claude/desktop-poc`) adds a desktop app for Windows and Linux. You sign in
+with your own ThreatAtlas token, pick a product and a report type, and download the PDF. It
+is a local web page in your browser; start it with `desktop\start-windows.cmd` or
+`desktop/start-linux.sh`. See **[docs/DESKTOP.md](docs/DESKTOP.md)**.
+
+On Windows, PDFs are made with Microsoft Edge, so nothing extra needs installing. The main
+tool can do the same: `tae report build --pdf-engine browser`.
+
 ## Quick start
 
 ```sh
@@ -111,7 +121,9 @@ tae validate    [SNAPSHOT | --product ID|NAME] [--rules FILE] [--format table|js
 tae rules       [--rules FILE]
 tae report      build [SNAPSHOT | --product ID|NAME] [-d DEFINITION] [-f PDF] [--html FILE]
                       [--rules FILE] [--on-failure block|annotate|warn|ignore] [--findings-file FILE]
+                      [--pdf-engine auto|weasyprint|browser]
                 init [FILE] | check FILE | schema [-f FILE]
+tae desktop     [--reports-dir DIR] [--pdf-engine ...] [--port N] [--no-browser]
 tae auth        login | status | logout
 tae config      show | path
 tae products    list | get ID | security-status ID
