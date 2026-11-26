@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import base64
-import mimetypes
 import re
 from collections import Counter
 from dataclasses import dataclass, field
@@ -13,7 +12,8 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import unquote, urlparse
 
-from jinja2 import ChoiceLoader, Environment, FileSystemLoader, StrictUndefined, select_autoescape
+from jinja2 import ChoiceLoader, FileSystemLoader, StrictUndefined, select_autoescape
+from jinja2.exceptions import SecurityError
 from jinja2.sandbox import SandboxedEnvironment
 from markupsafe import Markup
 
@@ -195,7 +195,17 @@ def _paragraphs(text: str | None) -> list[str]:
     return [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip()]
 
 
-_user_env = SandboxedEnvironment(autoescape=False, undefined=StrictUndefined)
+def _finalize(value: Any) -> Any:
+    """How placeholder values print: nothing for missing values, dates without microseconds."""
+    if value is None:
+        return ""
+    if isinstance(value, datetime):
+        return value.strftime("%Y-%m-%d %H:%M UTC") if value.tzinfo else value.strftime("%Y-%m-%d %H:%M")
+    return value
+
+
+_user_env = SandboxedEnvironment(autoescape=False, undefined=StrictUndefined, finalize=_finalize)
+_user_env.filters["date"] = lambda v: _fmt_date(v)
 
 
 def render_user_string(template: str | None, **ctx: Any) -> str:
@@ -206,6 +216,34 @@ def render_user_string(template: str | None, **ctx: Any) -> str:
         return _user_env.from_string(template).render(**ctx)
     except Exception as exc:
         raise ReportDefinitionError(f"Cannot fill in {template!r}: {exc}") from exc
+
+
+# Logos are embedded in the PDF, so a definition must not be able to smuggle any other
+# file in: the content has to really be one of these image formats.
+LOGO_MAX_BYTES = 2 * 1024 * 1024
+_IMAGE_SIGNATURES = (
+    (b"\x89PNG\r\n\x1a\n", "image/png"),
+    (b"\xff\xd8\xff", "image/jpeg"),
+    (b"GIF87a", "image/gif"),
+    (b"GIF89a", "image/gif"),
+)
+
+
+def load_logo(path: Path) -> tuple[bytes, str]:
+    """Read a logo and return (content, MIME type), refusing anything but real images."""
+    if path.stat().st_size > LOGO_MAX_BYTES:
+        raise ReportDefinitionError(f"Logo is larger than {LOGO_MAX_BYTES // (1024 * 1024)} MB: {path}")
+    data = path.read_bytes()
+    for signature, mime in _IMAGE_SIGNATURES:
+        if data.startswith(signature):
+            return data, mime
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return data, "image/webp"
+    if path.suffix.lower() == ".svg":
+        head = data[:2048].decode("utf-8", errors="replace").lower()
+        if "<svg" in head:
+            return data, "image/svg+xml"
+    raise ReportDefinitionError(f"Logo must be a PNG, JPEG, GIF, WebP or SVG image: {path}")
 
 
 # ── section builders ────────────────────────────────────────────────────────────────
@@ -242,10 +280,7 @@ class Builder:
             path = self.d.resolve(self.d.branding.logo)
             if not path.is_file():
                 raise ReportDefinitionError(f"Logo not found: {path}")
-            mime = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
-            if not mime.startswith("image/"):
-                raise ReportDefinitionError(f"Logo must be an image, got {mime}: {path}")
-            logo = data_uri(path.read_bytes(), mime)
+            logo = data_uri(*load_logo(path))
         return {
             "logo": logo,
             "facts": [
@@ -350,9 +385,11 @@ class Builder:
         visible = {t.id for t in self.threats}
         diagrams = []
         for d in self.scoped.diagrams:
-            svg = render_svg(d, annotate_threats=s.annotate_threats)
+            svg = render_svg(d, annotate_threats=s.annotate_threats, visible=visible)
             elements = []
             for e in sorted(d.elements.values(), key=lambda e: (e.kind, e.label.casefold())):
+                if not s.element_table:
+                    break
                 threats = [t for t in d.threats_on(e.id) if t.id in visible]
                 if e.is_boundary and not threats:
                     continue
@@ -489,12 +526,55 @@ class Builder:
 # ── top level ─────────────────────────────────────────────────────────────────────────
 
 
+def scoped_validation_view(
+    snapshot: Snapshot, view: ProductView, scoped: Scoped, definition: ReportDefinition
+) -> ProductView:
+    """The part of the product the report covers, for validation.
+
+    Validation follows the report's *scope* (diagrams, frameworks, threat-model
+    statuses), so threats a report deliberately leaves out (e.g. in archived threat
+    models) can't fail or block it. Display *filters* (such as min_severity) are not
+    applied: a report showing only high risks is still validated on everything in scope.
+    Threat and mitigation references (T1, M1) are kept identical to the report's.
+    """
+    diagram_ids = {d.id for d in scoped.diagrams}
+    frameworks = {f.casefold() for f in definition.scope.frameworks}
+    statuses = set(definition.scope.model_status)
+    models = [
+        m
+        for m in snapshot.models
+        if m.diagram_id in diagram_ids
+        and m.status in statuses
+        and (not frameworks or m.framework_name.casefold() in frameworks)
+    ]
+    subset = snapshot.model_copy(
+        update={
+            "diagrams": [d.diagram for d in scoped.diagrams],
+            "models": models,
+            "diagram_threats": [t.record for t in scoped.threats],
+            "diagram_mitigations": [m.record for m in scoped.mitigations],
+        }
+    )
+    sub_view = build_view(subset)
+    refs = {t.id: t.ref for t in view.threats}
+    for t in sub_view.threats:
+        t.ref = refs.get(t.id, t.ref)
+    mrefs = {m.id: m.ref for m in view.mitigations}
+    for m in sub_view.mitigations:
+        m.ref = mrefs.get(m.id, m.ref)
+    return sub_view
+
+
 def load_validation_config(definition: ReportDefinition, override: Path | None) -> ValidationConfig:
     if override is not None:
         return ValidationConfig.load(override)
     if definition.validation.rules:
         return ValidationConfig.load(definition.resolve(definition.validation.rules))
     return ValidationConfig()
+
+
+def _render(template: Any, **ctx: Any) -> str:
+    return str(template.render(**ctx))
 
 
 def build_report(
@@ -508,7 +588,12 @@ def build_report(
     as_of = as_of or date.today()
     mode = on_failure or definition.validation.on_failure
     view = build_view(snapshot)
-    validation = run(view, load_validation_config(definition, rules), as_of=as_of)
+    scoped = apply_scope(view, definition.scope)
+    validation = run(
+        scoped_validation_view(snapshot, view, scoped, definition),
+        load_validation_config(definition, rules),
+        as_of=as_of,
+    )
     failed = validation.fails(definition.validation.fail_level)
     if failed and mode is OnFailure.block:
         raise ReportBlocked(validation)
@@ -519,7 +604,7 @@ def build_report(
     elif failed and not any(isinstance(s, ValidationFindingsSection) for s in sections):
         sections.append(ValidationFindingsSection(type="validation_findings"))
 
-    builder = Builder(view, apply_scope(view, definition.scope), definition, validation, failed, as_of)
+    builder = Builder(view, scoped, definition, validation, failed, as_of)
     rendered: list[RenderedSection] = []
     number = 0
     for i, s in enumerate(sections):
@@ -544,7 +629,9 @@ def build_report(
             raise ReportDefinitionError(f"Template directory not found: {custom}")
         template_dirs.append(custom)
     builtin_dir = Path(str(TEMPLATES))
-    env = Environment(
+    # Sandboxed, so a custom template directory from a shared definition can format the
+    # report but can't reach Python internals (and through them, the machine).
+    env = SandboxedEnvironment(
         loader=ChoiceLoader([FileSystemLoader([str(p) for p in [*template_dirs, builtin_dir]])]),
         autoescape=select_autoescape(["html", "j2"], default_for_string=True, default=True),
         undefined=StrictUndefined,
@@ -557,22 +644,29 @@ def build_report(
 
     title = render_user_string(definition.title, **builder.user_ctx)
     subtitle = render_user_string(definition.subtitle, **builder.user_ctx)
-    html = env.get_template("report.html.j2").render(
-        definition=definition,
-        branding=definition.branding,
-        title=title,
-        subtitle=subtitle,
-        product=view.product,
-        meta=snapshot.meta,
-        sections=rendered,
-        banner=failed and mode is OnFailure.annotate,
-        validation=validation,
-        as_of=as_of,
-        generated_at=datetime.now(UTC),
-        tool_version=__version__,
-        snapshot_hash=snapshot.content_hash()[:12],
-        Level=Level,
-    )
+    template = env.get_template("report.html.j2")
+    try:
+        html = _render(
+            template,
+            definition=definition,
+            branding=definition.branding,
+            title=title,
+            subtitle=subtitle,
+            product=view.product,
+            meta=snapshot.meta,
+            sections=rendered,
+            banner=failed and mode is OnFailure.annotate,
+            validation=validation,
+            as_of=as_of,
+            generated_at=datetime.now(UTC),
+            tool_version=__version__,
+            snapshot_hash=snapshot.content_hash()[:12],
+            Level=Level,
+        )
+    except SecurityError as exc:
+        raise ReportDefinitionError(
+            f"A report template tried something the template sandbox doesn't allow: {exc}"
+        ) from None
     return ReportOutput(
         html=html,
         validation=validation,

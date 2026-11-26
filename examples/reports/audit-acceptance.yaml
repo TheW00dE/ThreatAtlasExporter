@@ -1,7 +1,7 @@
 # Evidence pack for a risk acceptance review: every accepted risk, its approval, and the
 # findings that would stop sign-off. Fails hard if any acceptance is incomplete.
 title: "Risk Acceptance Review"
-subtitle: "{{ product.name }}, owner {{ product.owner_name }}"
+subtitle: "{{ product.name }}, owner {{ product.owner_name or 'unassigned' }}"
 
 branding:
   classification: "CONFIDENTIAL"

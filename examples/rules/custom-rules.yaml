@@ -49,5 +49,5 @@ rules:
     level: info
     applies_to: element
     when: { kind: edge }
-    require: { label: { matches: "\\D" } }
+    require: { has_label: true }
     message: "Data flow {id} on {diagram} has no descriptive label"

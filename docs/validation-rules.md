@@ -121,11 +121,12 @@ expressions are evaluated.
 | `diagram_mitigation` | `id`, `ref`, `name`, `description`, `category`, `status`, `comments`, `element_id`, `element_label`, `element_type`, `element_kind`, `diagram`, `diagram_id`, `linked`, `threat_ref`, `threat_name`, `threat_severity`, `threat_status` |
 | `diagram` | `id`, `name`, `description`, `node_count`, `edge_count`, `model_count`, `threat_count`, `open_threat_count`, `mitigation_count` |
 | `model` | `id`, `name`, `description`, `status`, `framework`, `diagram`, `diagram_id`, `threat_count`, `open_threat_count`, `completed_at` |
-| `element` | `id`, `label`, `type`, `kind`, `diagram`, `diagram_id`, `threat_count`, `mitigation_count` |
+| `element` | `id`, `label`, `has_label`, `type`, `kind`, `diagram`, `diagram_id`, `threat_count`, `mitigation_count` |
 | `product` | `id`, `name`, `description`, `status`, `is_public`, `repository_url`, `confluence_url`, `application_url`, `business_area`, `owner_name`, `owner_email`, `jira_project_key`, `reviewer`, `contributors`, `diagram_count`, `threat_count`, `open_threat_count`, `mitigation_count` |
 
 `element_type` is `process`, `datastore`, `external`, `boundary` or `flow` (for edges);
-`element_kind` is `node` or `edge`. See [examples/rules/custom-rules.yaml](../examples/rules/custom-rules.yaml).
+`element_kind` is `node` or `edge`. An element without a label shows its ID as `label`; use
+`has_label` to check whether it really has one. See [examples/rules/custom-rules.yaml](../examples/rules/custom-rules.yaml).
 
 ## In GitLab CI
 

@@ -38,7 +38,9 @@ To get schema-based autocompletion in VS Code, add this to `.vscode/settings.jso
 | `sections` | full report | Ordered list of sections |
 | `template` | built-in | Directory with template overrides |
 
-Placeholders use a sandboxed template engine. Available values: `product.*` (every
+Placeholders use a sandboxed template engine. Missing values print as nothing (use
+`{{ product.owner_name or "unassigned" }}` for a fallback), and dates print without
+seconds; `{{ meta.pulled_at|date }}` gives just the date. Available values: `product.*` (every
 product field) and `meta.*` (`source_url`, `pulled_at`, `pulled_by`, `tool_version`).
 
 ### `branding`
@@ -94,6 +96,11 @@ validation:
 | `ignore` | written | removed | 0 |
 
 `--on-failure` and `--rules` on the command line override the definition.
+
+Validation covers the report's **scope** (diagrams, frameworks, threat-model statuses),
+so threats a report deliberately leaves out can't fail or block it. Display **filters**
+such as `min_severity` don't narrow validation: a report that shows only high risks is
+still validated on everything in its scope.
 
 ## Sections
 
@@ -178,5 +185,7 @@ my-template/
 
 Copy the originals from `src/tae/report/templates/` as a starting point, and use
 `tae report build ... --html out.html` to check changes quickly in a browser. All values
-from ThreatAtlas are HTML-escaped automatically. For safety, templates can only load
-files from the template directories and `data:` URIs; remote URLs are blocked.
+from ThreatAtlas are HTML-escaped automatically. For safety, templates run in a sandbox
+(they can format the report but can't reach Python internals), can only load files from
+the template directories and `data:` URIs, and remote URLs are blocked. Logos must really
+be PNG, JPEG, GIF, WebP or SVG images (2 MB at most).
