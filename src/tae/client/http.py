@@ -7,6 +7,7 @@ Handles the base URL, bearer authentication, TLS settings, retries with backoff,
 from __future__ import annotations
 
 import logging
+import math
 import ssl
 import time
 from collections.abc import Callable, Iterator
@@ -20,9 +21,15 @@ from tae.client.errors import ConnectionFailed, ResponseFormatError, error_for_r
 log = logging.getLogger(__name__)
 
 API_PREFIX = "/api"
-DEFAULT_PAGE_SIZE = 100
+# ThreatAtlas doesn't sort most list endpoints, so pages taken with skip/limit can
+# overlap or miss rows. Asking for large pages means real collections arrive in one
+# response; paginate() also drops repeated IDs in case a collection is bigger.
+DEFAULT_PAGE_SIZE = 1000
 RETRY_STATUSES = frozenset({429, 502, 503, 504})
-IDEMPOTENT_METHODS = frozenset({"GET", "HEAD", "PUT", "DELETE", "OPTIONS"})
+# Methods that are safe to send again after the request may have reached the server.
+# PUT and DELETE are not: in ThreatAtlas a repeated diagram PUT creates another version
+# snapshot, and a repeated DELETE fails with 404 after the first one worked.
+SAFE_TO_REPEAT = frozenset({"GET", "HEAD", "OPTIONS"})
 MAX_RETRY_AFTER = 30.0
 
 Params = dict[str, Any]
@@ -101,10 +108,11 @@ class HttpClient:
             try:
                 response = self._client.request(method, path, params=clean_params or None, json=json)
             except httpx.TransportError as exc:
-                # A connect failure means the request never reached the server, so
-                # it is safe to retry for every method. Other transport errors (read
-                # timeouts, dropped connections) are only retried when idempotent.
-                retriable = isinstance(exc, httpx.ConnectError) or method in IDEMPOTENT_METHODS
+                # A connect failure means the request never reached the server, so it
+                # is safe to retry for every method. After other transport errors (read
+                # timeouts, dropped connections) the server may have acted on it, so
+                # only reads are retried.
+                retriable = isinstance(exc, httpx.ConnectError) or method in SAFE_TO_REPEAT
                 if retriable and attempt < self.retries:
                     delay = self._delay(attempt, None)
                     log.debug("%s %s failed (%s); retry in %.1fs", method, path, exc, delay)
@@ -114,9 +122,9 @@ class HttpClient:
                 raise ConnectionFailed(f"{method} {self.base_url}{API_PREFIX}{path}: {exc}") from exc
 
             # 429 is rejected before any work happens, so retrying is safe for all
-            # methods; gateway errors are only retried for idempotent ones.
+            # methods; after a gateway error only reads are retried (see SAFE_TO_REPEAT).
             retriable_status = response.status_code == 429 or (
-                response.status_code in RETRY_STATUSES and method in IDEMPOTENT_METHODS
+                response.status_code in RETRY_STATUSES and method in SAFE_TO_REPEAT
             )
             if retriable_status and attempt < self.retries:
                 delay = self._delay(attempt, response.headers.get("Retry-After"))
@@ -138,12 +146,16 @@ class HttpClient:
             return response
 
     def _delay(self, attempt: int, retry_after: str | None) -> float:
+        """Seconds to wait: the server's Retry-After if it's a sane number, else backoff."""
+        backoff = float(self.backoff * (2**attempt))
         if retry_after:
             try:
-                return min(float(retry_after), MAX_RETRY_AFTER)
+                seconds = float(retry_after)
             except ValueError:
-                pass
-        return float(self.backoff * (2**attempt))
+                return backoff  # e.g. an HTTP date, which we don't parse
+            if math.isfinite(seconds) and seconds >= 0:
+                return min(seconds, MAX_RETRY_AFTER)
+        return backoff
 
     def get_json(self, path: str, params: Params | None = None) -> Any:
         return _json(self.request("GET", path, params=params))
@@ -163,13 +175,21 @@ class HttpClient:
         params: Params | None = None,
         page_size: int = DEFAULT_PAGE_SIZE,
     ) -> Iterator[dict[str, Any]]:
-        """Yield every item from a ``skip``/``limit`` list endpoint."""
+        """Yield every item from a ``skip``/``limit`` list endpoint, each ID once."""
         skip = 0
+        seen: set[Any] = set()
         while True:
             page = self.get_json(path, {**(params or {}), "skip": skip, "limit": page_size})
             if not isinstance(page, list):
                 raise ResponseFormatError(f"GET {path}: expected a JSON list, got {type(page).__name__}")
-            yield from page
+            for item in page:
+                key = item.get("id") if isinstance(item, dict) else None
+                if key is not None:
+                    if key in seen:
+                        log.debug("GET %s: skipping repeated id %s across pages", path, key)
+                        continue
+                    seen.add(key)
+                yield item
             if len(page) < page_size:
                 return
             skip += page_size

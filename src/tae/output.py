@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Callable, Sequence
+import re
+from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
@@ -33,6 +34,26 @@ def col(header: str, attr: str, max_width: int | None = None) -> Column:
     return Column(header, lambda o: getattr(o, attr, None), max_width)
 
 
+# Characters that can drive a terminal rather than display: C0 controls (except tab and
+# newline), DEL, C1 controls, and bidirectional overrides that reorder visible text.
+_UNSAFE = re.compile("[\x00-\x08\x0b-\x1f\x7f-\x9f\u202a-\u202e\u2066-\u2069]")
+
+
+def safe_text(value: object) -> str:
+    """Make server-supplied text safe to print to a terminal.
+
+    Rich's markup escaping doesn't stop raw escape sequences, which could clear the
+    screen, rewrite earlier lines, plant hyperlinks or write to the clipboard (OSC 52).
+    They are shown as visible ``\\x1b``-style codes instead.
+    """
+
+    def show(m: re.Match[str]) -> str:
+        code = ord(m.group())
+        return f"\\x{code:02x}" if code < 0x100 else f"\\u{code:04x}"
+
+    return _UNSAFE.sub(show, str(value))
+
+
 def to_data(obj: Any) -> Any:
     if isinstance(obj, BaseModel):
         return obj.model_dump(mode="json")
@@ -45,7 +66,10 @@ def dumps(obj: Any, fmt: OutputFormat) -> str:
     data = to_data(obj)
     if fmt is OutputFormat.yaml:
         return yaml.safe_dump(data, sort_keys=False, allow_unicode=True).rstrip()
-    return json.dumps(data, indent=2, ensure_ascii=False, default=str)
+    text = json.dumps(data, indent=2, ensure_ascii=False, default=str)
+    # json escapes C0 controls but not C1 (8-bit CSI etc.) or bidi overrides; these can
+    # only occur inside strings, where a \\uXXXX escape means the same thing.
+    return _UNSAFE.sub(lambda m: f"\\u{ord(m.group()):04x}", text)
 
 
 def print_structured(console: Console, obj: Any, fmt: OutputFormat) -> None:
@@ -61,7 +85,7 @@ def _cell(value: Any) -> Text:
         return Text("yes" if value else "no")
     if isinstance(value, datetime):
         return Text(value.strftime("%Y-%m-%d %H:%M"))
-    return Text(str(value))
+    return Text(safe_text(value))
 
 
 def render_list(
@@ -94,11 +118,23 @@ def render_item(console: Console, item: Any, fmt: OutputFormat, *, exclude: set[
     table = Table(show_header=False, box=None, pad_edge=False)
     table.add_column(style="bold")
     table.add_column(overflow="fold")
-    for key, value in data.items():
-        if exclude and key in exclude:
-            continue
-        if isinstance(value, dict | list):
-            text = json.dumps(value, ensure_ascii=False)
-            value = text if len(text) <= 120 else f"<{type(value).__name__}: use -o json to see it>"
-        table.add_row(Text(key), _cell(value))
+    for key, value in _flatten(data, exclude or set()):
+        table.add_row(Text(safe_text(key)), _cell(value))
     console.print(table)
+
+
+def _flatten(data: dict[str, Any], exclude: set[str], prefix: str = "") -> Iterator[tuple[str, Any]]:
+    """Rows for a key/value table: nested objects become ``parent.child`` rows."""
+    for key, value in data.items():
+        if not prefix and key in exclude:
+            continue
+        name = f"{prefix}{key}"
+        if isinstance(value, dict) and value:
+            yield from _flatten(value, exclude, f"{name}.")
+        elif isinstance(value, list):
+            if all(not isinstance(v, dict | list) for v in value):
+                yield name, "; ".join(str(v) for v in value) if value else "—"
+            else:
+                yield name, f"{len(value)} item(s): use -o json to see them"
+        else:
+            yield name, value
