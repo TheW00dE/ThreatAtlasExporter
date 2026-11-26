@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from rich.text import Text
+
 from tae.cli.common import ExitCode, State, err_console, fail
+from tae.output import safe_text
 from tae.snapshot import Snapshot
 from tae.snapshot.collector import collect, resolve_product
 
@@ -26,6 +29,7 @@ def pull(state: State, product_ref: str, *, quiet: bool = False) -> Snapshot:
 
     def progress(message: str) -> None:
         if not quiet:
-            err_console.print(f"[dim]{message}…[/dim]", highlight=False)
+            # Progress messages include diagram names from the server.
+            err_console.print(Text(f"{safe_text(message)}…", style="dim"), highlight=False)
 
     return collect(client, product, progress)

@@ -11,11 +11,14 @@ the config file itself, so it can be committed or mounted from a ConfigMap.
 from __future__ import annotations
 
 import os
+import ssl
 import tomllib
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+import truststore
 
 from tae.client.http import normalize_base_url
 
@@ -63,7 +66,26 @@ class Settings:
     config_path: Path | None
 
     def client_options(self) -> dict[str, Any]:
-        return {"timeout": self.timeout, "verify": self.verify, "retries": self.retries}
+        return {"timeout": self.timeout, "verify": self.ssl_context(), "retries": self.retries}
+
+    def ssl_context(self) -> ssl.SSLContext | bool:
+        """TLS settings for httpx.
+
+        - verification off: ``False``
+        - a CA bundle: a context trusting exactly that bundle
+        - otherwise: the operating system's certificate store (via truststore), so an
+          internal company CA that the machine already trusts works without a bundle
+        """
+        if self.verify is False:
+            return False
+        if isinstance(self.verify, str):
+            try:
+                return ssl.create_default_context(cafile=self.verify)
+            except (ssl.SSLError, OSError) as exc:
+                raise ConfigError(
+                    f"CA bundle {self.verify} is not a readable PEM certificate file: {exc}"
+                ) from exc
+        return truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
 
 
 @dataclass
@@ -120,22 +142,39 @@ def _profile_from_dict(name: str, data: dict[str, Any], path: Path) -> Profile:
         )
     if unknown:
         raise ConfigError(f"{path}: [profiles.{name}] has unknown keys: {', '.join(sorted(unknown))}")
-    try:
-        return Profile(
-            name=name,
-            url=data.get("url"),
-            verify_tls=_profile_bool(data.get("verify_tls", True), f"[profiles.{name}] verify_tls"),
-            ca_bundle=data.get("ca_bundle"),
-            timeout=float(data.get("timeout", DEFAULT_TIMEOUT)),
-            retries=int(data.get("retries", DEFAULT_RETRIES)),
-            token_file=data.get("token_file"),
-        )
-    except (TypeError, ValueError) as exc:
-        raise ConfigError(f"{path}: [profiles.{name}]: {exc}") from exc
+    where = f"{path}: [profiles.{name}]"
+    for key in ("url", "ca_bundle", "token_file"):
+        if key in data and not isinstance(data[key], str):
+            raise ConfigError(f"{where} {key} must be a string, got {data[key]!r}")
+    for key, kind in (("timeout", (int, float)), ("retries", (int,))):
+        value = data.get(key)
+        if value is not None and (isinstance(value, bool) or not isinstance(value, kind)):
+            raise ConfigError(f"{where} {key} must be a number, got {value!r}")
+    timeout = float(data.get("timeout", DEFAULT_TIMEOUT))
+    retries = int(data.get("retries", DEFAULT_RETRIES))
+    if timeout <= 0 or retries < 0:
+        raise ConfigError(f"{where} timeout must be positive and retries zero or more")
+    return Profile(
+        name=name,
+        url=data.get("url"),
+        verify_tls=_profile_bool(data.get("verify_tls", True), f"[profiles.{name}] verify_tls"),
+        ca_bundle=data.get("ca_bundle"),
+        timeout=timeout,
+        retries=retries,
+        token_file=data.get("token_file"),
+    )
 
 
-def resolve(overrides: Overrides, env: Mapping[str, str] | None = None) -> Settings:
-    """Combine CLI flags, env vars and the config file into ``Settings``."""
+def resolve(
+    overrides: Overrides,
+    env: Mapping[str, str] | None = None,
+    *,
+    with_token: bool = True,
+) -> Settings:
+    """Combine CLI flags, env vars and the config file into ``Settings``.
+
+    With ``with_token=False`` no token is looked up (used by ``tae auth login``).
+    """
     env = os.environ if env is None else env
 
     explicit_path = overrides.config or (Path(env["TAE_CONFIG"]) if env.get("TAE_CONFIG") else None)
@@ -182,7 +221,9 @@ def resolve(overrides: Overrides, env: Mapping[str, str] | None = None) -> Setti
         except ValueError as exc:
             raise ConfigError(f"TAE_TIMEOUT must be a number, got {env['TAE_TIMEOUT']!r}") from exc
 
-    token, source = resolve_token(overrides.token, env, profile, url)
+    # with_token=False skips the token lookup, so `tae auth login` still works when
+    # the configured token source is broken (e.g. a token file that no longer exists).
+    token, source = resolve_token(overrides.token, env, profile, url) if with_token else (None, None)
     return Settings(
         profile=profile_name,
         url=url,

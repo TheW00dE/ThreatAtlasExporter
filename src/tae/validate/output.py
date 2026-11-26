@@ -10,6 +10,7 @@ from rich.console import Console
 from rich.table import Table
 from rich.text import Text
 
+from tae.output import safe_text
 from tae.validate.engine import ValidationResult
 from tae.validate.findings import FailLevel, Finding, Level
 
@@ -47,9 +48,9 @@ def render_table(console: Console, result: ValidationResult, fail_level: FailLev
             table.add_row(
                 Text(f.level.value, style=LEVEL_STYLE[f.level]),
                 Text(f.rule_id),
-                Text(f.entity.diagram_name or "—"),
-                Text(subject),
-                Text(f.message),
+                Text(safe_text(f.entity.diagram_name or "—")),
+                Text(safe_text(subject)),
+                Text(safe_text(f.message)),
             )
         console.print(table)
     style = "bold red" if result.fails(fail_level) else "bold green"

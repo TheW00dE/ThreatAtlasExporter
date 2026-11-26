@@ -16,7 +16,7 @@ from tae.client import ThreatAtlasClient
 from tae.client import errors as e
 from tae.config import ConfigError, Overrides, Settings, resolve
 from tae.errors import EnvironmentProblem, InputError
-from tae.output import OutputFormat
+from tae.output import OutputFormat, safe_text
 from tae.snapshot.collector import ProductNotFound
 
 console = Console(soft_wrap=True)
@@ -78,7 +78,7 @@ def get_state(ctx: typer.Context) -> State:
 
 
 def fail(message: str, code: ExitCode = ExitCode.ERROR) -> NoReturn:
-    err_console.print(f"[red]Error:[/red] {escape(message)}", highlight=False)
+    err_console.print(f"[red]Error:[/red] {escape(safe_text(message))}", highlight=False)
     raise typer.Exit(int(code))
 
 
@@ -117,7 +117,8 @@ class ErrorHandlingGroup(TyperGroup):
         except (ConfigError, InputError, EnvironmentProblem, e.ThreatAtlasError) as exc:
             if logging.getLogger().isEnabledFor(logging.DEBUG):
                 err_console.print_exception()
-            err_console.print(f"[red]Error:[/red] {escape(str(exc))}", highlight=False)
+            # Error text can contain server-supplied detail: no markup, no escape sequences.
+            err_console.print(f"[red]Error:[/red] {escape(safe_text(exc))}", highlight=False)
             hint = _hint_for(exc)
             if hint:
                 err_console.print(f"[dim]{escape(hint)}[/dim]", highlight=False)

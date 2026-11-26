@@ -7,9 +7,10 @@ import sys
 import typer
 from rich.markup import escape
 
-from tae.cli.common import ExitCode, console, err_console, fail, get_state
+from tae.cli.common import ExitCode, State, console, err_console, fail, get_state
 from tae.client import ThreatAtlasClient
-from tae.config import keyring_delete, keyring_set
+from tae.config import ConfigError, keyring_delete, keyring_set, resolve
+from tae.output import safe_text
 
 app = typer.Typer(help="Manage the ThreatAtlas API token.", no_args_is_help=True)
 
@@ -25,7 +26,9 @@ def login(
     In containers and CI, set TAE_TOKEN or TAE_TOKEN_FILE instead.
     """
     state = get_state(ctx)
-    settings = state.settings
+    # Resolve everything except the token: a broken token setup (say, a token file that
+    # was deleted) must not stop the command that replaces the token.
+    settings = resolve(state.overrides, with_token=False)
     if token_stdin:
         token = sys.stdin.readline().strip()
     else:
@@ -39,9 +42,31 @@ def login(
         user = client.users.me()
     keyring_set(settings.url, token)
     console.print(
-        f"Logged in to {escape(settings.url)} as [bold]{escape(user.username)}[/bold] ({escape(user.role)}). "
-        "Token saved in the OS keyring."
+        f"Logged in to {escape(safe_text(settings.url))} as [bold]{escape(safe_text(user.username))}[/bold] "
+        f"({escape(safe_text(user.role))}). Token saved in the OS keyring."
     )
+    _warn_if_overridden(state)
+
+
+def _warn_if_overridden(state: State) -> None:
+    """The keyring is the last place tae looks; say so if something else wins."""
+    try:
+        effective = resolve(state.overrides)
+    except ConfigError as exc:
+        err_console.print(
+            f"Warning: your configuration has another token source that is broken and takes "
+            f"precedence over the keyring: {safe_text(exc)}",
+            markup=False,
+            highlight=False,
+        )
+        return
+    if effective.token_source and effective.token_source != "keyring":  # noqa: S105  (a source name)
+        err_console.print(
+            f"Warning: the token from {effective.token_source} takes precedence over the keyring, "
+            "so tae will keep using that one. Remove it to use the token you just saved.",
+            markup=False,
+            highlight=False,
+        )
 
 
 @app.command("status")
@@ -56,7 +81,11 @@ def status(ctx: typer.Context) -> None:
     )
     user = state.client().users.me()
     role = user.effective_role or user.role
-    console.print(f"User:     {user.username} <{user.email}> (role: {role})", markup=False, highlight=False)
+    console.print(
+        f"User:     {safe_text(user.username)} <{safe_text(user.email)}> (role: {safe_text(role)})",
+        markup=False,
+        highlight=False,
+    )
 
 
 @app.command("logout")
