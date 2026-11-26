@@ -37,6 +37,7 @@ To get schema-based autocompletion in VS Code, add this to `.vscode/settings.jso
 | `validation` | | Rules file, failure handling |
 | `sections` | full report | Ordered list of sections |
 | `template` | built-in | Directory with template overrides |
+| `risk_scales` | none | Framework or risk-scale files with your own risk scale ([import.md](import.md#risk-scales)) |
 
 Placeholders use a sandboxed template engine. Missing values print as nothing (use
 `{{ product.owner_name or "unassigned" }}` for a fallback), and dates print without
@@ -116,7 +117,8 @@ automatically and listed in the table of contents and PDF bookmarks.
 | `executive_summary` | | KPIs, threats by severity chart, status breakdowns, top open risks, validation verdict |
 | `product_info` | `fields` | Product metadata table |
 | `diagram` | `annotate_threats`, `legend`, `element_table` | One rendered data flow diagram per diagram in scope, with threat badges, and a table of elements and their threats |
-| `risk_matrix` | `residual` | 5×5 likelihood × impact heatmap(s) |
+| `risk_matrix` | `residual` | 5×5 likelihood × impact heatmap(s), in your risk scale's colours and level names when one applies |
+| `risk_scale` | | What each likelihood and impact level means, and the severity bands in use |
 | `threat_table` | `group_by`, `sort`, `columns`, `filters`, `details` | Threats with their mitigations |
 | `mitigation_table` | `statuses`, `group_by`, `columns` | Mitigations and the threats they address |
 | `accepted_risks` | | Justification, approver, review date and status of each accepted risk; overdue ones highlighted |

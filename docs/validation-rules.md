@@ -72,7 +72,12 @@ params:
   required_product_fields: [description, owner_name, owner_email, reviewer]   # CMP005
   uncovered_element_types: [process, datastore, external, flow]               # CMP004
 rules: []                    # custom rules, see below
+risk_scales: [../models/payments-framework.yaml]   # your own severity bands, see import.md
 ```
+
+With a custom risk scale (`risk_scales`, or `tae validate --risk-scale FILE`), threats of
+that scale's frameworks get their severity from your bands, which affects rules such as
+`GOV005`. `CON001` still checks ThreatAtlas's stored values against ThreatAtlas's bands.
 
 Unknown rule IDs, unknown keys and malformed rules are rejected with exit code 3, so a
 typo can't silently switch a check off.

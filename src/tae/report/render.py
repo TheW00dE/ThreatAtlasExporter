@@ -33,6 +33,7 @@ from tae.report.definition import (
     ReportDefinition,
     ReportDefinitionError,
     RiskMatrixSection,
+    RiskScaleSection,
     TextSection,
     ThreatTableSection,
     TocSection,
@@ -47,6 +48,7 @@ from tae.report.query import (
     group_threats,
     sort_threats,
 )
+from tae.risk import DEFAULT_BANDS, RiskScale, load_risk_scales
 from tae.snapshot import Snapshot, build_view
 from tae.snapshot.view import ACTIVE_MITIGATION_STATUSES, ProductView
 from tae.validate import ValidationConfig, ValidationResult, run
@@ -60,6 +62,7 @@ DEFAULT_TITLES = {
     "product_info": "Product information",
     "diagram": "Data flow diagrams",
     "risk_matrix": "Risk matrix",
+    "risk_scale": "Risk scale",
     "threat_table": "Threats",
     "mitigation_table": "Mitigations",
     "accepted_risks": "Accepted risks",
@@ -425,7 +428,19 @@ class Builder:
         m = re.search(r'width="(\d+)" height="(\d+)"', svg)
         return bool(m and int(m.group(1)) > 1.6 * int(m.group(2)))
 
+    def matrix_scale(self) -> RiskScale | None:
+        """The custom scale to colour the risk matrix with: only when all threats share one."""
+        scales = {id(t.scale): t.scale for t in self.threats}
+        if len(scales) == 1:
+            return next(iter(scales.values()))
+        if not self.threats and len(self.view.scales.scales) == 1:
+            return self.view.scales.scales[0]
+        return None
+
     def risk_matrix(self, s: RiskMatrixSection) -> dict[str, Any]:
+        scale = self.matrix_scale()
+        band = scale.severity if scale else severity_for_score
+
         def matrix(pairs: list[tuple[int | None, int | None]]) -> list[list[dict[str, Any]]]:
             counts = Counter((li, im) for li, im in pairs if li and im)
             rows = []
@@ -434,7 +449,7 @@ class Builder:
                     [
                         {
                             "count": counts.get((likelihood, impact), 0),
-                            "severity": severity_for_score(likelihood * impact),
+                            "severity": band(likelihood * impact),
                             "likelihood": likelihood,
                             "impact": impact,
                         }
@@ -450,7 +465,27 @@ class Builder:
             else None
         )
         unscored = sum(1 for t in self.threats if t.record.likelihood is None or t.record.impact is None)
-        return {"inherent": inherent, "residual": residual, "unscored": unscored}
+        mixed = len({id(t.scale) for t in self.threats}) > 1
+        return {
+            "inherent": inherent,
+            "residual": residual,
+            "unscored": unscored,
+            "likelihood_labels": {n: lvl.label for n, lvl in scale.likelihood.items()} if scale else {},
+            "impact_labels": {n: lvl.label for n, lvl in scale.impact.items()} if scale else {},
+            "bands": (scale.bands if scale else DEFAULT_BANDS),
+            "scale_name": scale.name if scale else None,
+            "mixed": mixed,
+        }
+
+    def risk_scale(self, s: RiskScaleSection) -> dict[str, Any]:
+        used: dict[int, RiskScale] = {}
+        for t in self.threats:
+            if t.scale is not None:
+                used.setdefault(id(t.scale), t.scale)
+        for sc in self.view.scales.scales:
+            used.setdefault(id(sc), sc)
+        default_used = not self.view.scales or any(t.scale is None for t in self.threats)
+        return {"scales": list(used.values()), "default_bands": DEFAULT_BANDS if default_used else None}
 
     def threat_table(self, s: ThreatTableSection) -> dict[str, Any]:
         threats = filter_threats(self.scoped.threats, s.filters) if s.filters else self.threats
@@ -555,7 +590,7 @@ def scoped_validation_view(
             "diagram_mitigations": [m.record for m in scoped.mitigations],
         }
     )
-    sub_view = build_view(subset)
+    sub_view = build_view(subset, view.scales)
     refs = {t.id: t.ref for t in view.threats}
     for t in sub_view.threats:
         t.ref = refs.get(t.id, t.ref)
@@ -587,13 +622,13 @@ def build_report(
 ) -> ReportOutput:
     as_of = as_of or date.today()
     mode = on_failure or definition.validation.on_failure
-    view = build_view(snapshot)
-    scoped = apply_scope(view, definition.scope)
-    validation = run(
-        scoped_validation_view(snapshot, view, scoped, definition),
-        load_validation_config(definition, rules),
-        as_of=as_of,
+    config = load_validation_config(definition, rules)
+    scales = load_risk_scales(
+        [*(definition.resolve(p) for p in definition.risk_scales), *config.scale_paths()]
     )
+    view = build_view(snapshot, scales)
+    scoped = apply_scope(view, definition.scope)
+    validation = run(scoped_validation_view(snapshot, view, scoped, definition), config, as_of=as_of)
     failed = validation.fails(definition.validation.fail_level)
     if failed and mode is OnFailure.block:
         raise ReportBlocked(validation)

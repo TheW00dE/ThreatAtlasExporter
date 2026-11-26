@@ -1,0 +1,29 @@
+{% macro levels(title, items) %}
+<table class="data scale">
+  <thead><tr><th class="col-ref">Level</th><th>{{ title }}</th><th>Meaning</th></tr></thead>
+  <tbody>
+  {% for n, lvl in items %}<tr><td class="num">{{ n }}</td><td><strong>{{ lvl.label }}</strong></td><td>{{ m.opt(lvl.description) }}</td></tr>{% endfor %}
+  </tbody>
+</table>
+{% endmacro %}
+{% macro band_table(b) %}
+<table class="compact">
+  <tr><td>{{ m.sev("critical") }}</td><td>score {{ b.critical }} or more</td></tr>
+  <tr><td>{{ m.sev("high") }}</td><td>{{ b.high }} to {{ b.critical - 1 }}</td></tr>
+  <tr><td>{{ m.sev("medium") }}</td><td>{{ b.medium }} to {{ b.high - 1 }}</td></tr>
+  <tr><td>{{ m.sev("low") }}</td><td>below {{ b.medium }}</td></tr>
+</table>
+{% endmacro %}
+<p>Risk is scored as likelihood × impact, each from 1 to 5, giving a score from 1 to 25.</p>
+{% for sc in s.data.scales %}
+<h2>{{ sc.name or "Custom risk scale" }}</h2>
+{% if sc.frameworks %}<p class="meta">Applies to threats from: {{ sc.frameworks|join(", ") }}</p>{% endif %}
+{{ levels("Likelihood", sc.likelihood.items()) }}
+{{ levels("Impact", sc.impact.items()) }}
+<h3>Severity bands</h3>
+{{ band_table(sc.bands) }}
+{% endfor %}
+{% if s.data.default_bands %}
+<h2>{% if s.data.scales %}Other threats: {% endif %}ThreatAtlas default bands</h2>
+{{ band_table(s.data.default_bands) }}
+{% endif %}

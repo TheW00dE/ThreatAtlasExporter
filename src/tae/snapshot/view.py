@@ -21,6 +21,7 @@ from tae.models.api import (
     Product,
     severity_for_score,
 )
+from tae.risk import RiskScale, RiskScales
 from tae.snapshot.model import Snapshot
 
 SEVERITY_RANK = {"critical": 4, "high": 3, "medium": 2, "low": 1}
@@ -56,6 +57,7 @@ class ThreatItem:
     framework: Framework | None
     ref: str = ""
     mitigations: list[MitigationItem] = field(default_factory=list)
+    scale: RiskScale | None = None  # custom risk scale for this threat's framework, if any
 
     @property
     def id(self) -> int:
@@ -92,6 +94,8 @@ class ThreatItem:
 
     @property
     def severity(self) -> str | None:
+        if self.scale is not None:
+            return self.scale.severity(self.risk_score)
         return self.record.severity or severity_for_score(self.risk_score)
 
     @property
@@ -105,6 +109,8 @@ class ThreatItem:
 
     @property
     def residual_severity(self) -> str | None:
+        if self.scale is not None:
+            return self.scale.severity(self.residual_score)
         return self.record.residual_severity or severity_for_score(self.residual_score)
 
     @property
@@ -195,6 +201,7 @@ class ProductView:
     mitigations: list[MitigationItem]
     frameworks: dict[int, Framework]
     models: dict[int, ModelWithFramework]
+    scales: RiskScales = field(default_factory=RiskScales)
 
     @property
     def product(self) -> Product:
@@ -252,7 +259,8 @@ def _threat_sort_key(t: ThreatItem) -> tuple[int, int, str, int]:
     return (-t.severity_rank, -(t.risk_score or 0), t.name.lower(), t.id)
 
 
-def build_view(snapshot: Snapshot) -> ProductView:
+def build_view(snapshot: Snapshot, scales: RiskScales | None = None) -> ProductView:
+    """Link the snapshot's records. ``scales`` sets custom severity bands per framework."""
     frameworks = {f.id: f for f in snapshot.frameworks}
     models = {m.id: m for m in snapshot.models}
 
@@ -281,6 +289,8 @@ def build_view(snapshot: Snapshot) -> ProductView:
             model=model,
             framework=frameworks.get(model.framework_id if model else record.threat.framework_id),
         )
+        if scales:
+            item.scale = scales.for_framework(item.framework_name)
         dview.threats.append(item)
         threats.append(item)
         threat_by_id[record.id] = item
@@ -325,4 +335,5 @@ def build_view(snapshot: Snapshot) -> ProductView:
         mitigations=ordered_mitigations,
         frameworks=frameworks,
         models=models,
+        scales=scales or RiskScales(),
     )

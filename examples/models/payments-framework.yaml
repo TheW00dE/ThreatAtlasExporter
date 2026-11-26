@@ -1,0 +1,66 @@
+# A custom threat-modelling framework for card payment systems.
+#
+#   tae import examples/models/payments-framework.yaml --dry-run
+#   tae import examples/models/payments-framework.yaml
+#
+# Re-import after editing to update ThreatAtlas; add --prune to delete entries you removed.
+# ThreatAtlas shows custom frameworks only to the account that imports them.
+
+kind: framework
+
+framework:
+  name: Card Payments Threat Model
+  description: >
+    In-house methodology for systems that store, process or transmit cardholder data.
+    Complements STRIDE with payment-specific abuse cases.
+
+categories: [Fraud, Cardholder data, Integrity, Availability, Compliance]
+
+# Optional. tae uses this scale for threats of this framework in validation and reports;
+# it is also written, readably, into the framework description in ThreatAtlas.
+risk_scale:
+  name: Payments risk scale
+  likelihood:
+    1: { label: Rare, description: Not expected within 5 years }
+    2: { label: Unlikely, description: Could happen within 5 years }
+    3: { label: Possible, description: Could happen within a year }
+    4: { label: Likely, description: Expected within a year }
+    5: { label: Almost certain, description: "Expected within a month, or already seen" }
+  impact:
+    1: { label: Negligible, description: No customer or financial impact }
+    2: { label: Minor, description: "Under 10k EUR loss; no cardholder data exposed" }
+    3: { label: Moderate, description: "Under 100k EUR loss, or limited data exposure" }
+    4: { label: Major, description: "Under 1M EUR loss, regulator notification required" }
+    5: { label: Severe, description: "Over 1M EUR loss, loss of card scheme certification" }
+  bands: { critical: 16, high: 10, medium: 5 }
+
+threats:
+  - name: Card-not-present fraud
+    category: Fraud
+    description: Stolen card details are used for online purchases.
+    mitigations: [3-D Secure step-up, Velocity limits]
+  - name: Card testing attack
+    category: Fraud
+    description: Attackers validate stolen cards with many small authorisations.
+    mitigations: [Velocity limits, Bot detection]
+  - name: Cardholder data exposure in logs
+    category: Cardholder data
+    description: PAN or CVV written to application logs or traces.
+    mitigations: [PAN tokenisation, Log scrubbing]
+  - name: Tampered payment amount
+    category: Integrity
+    description: The amount is changed between checkout and authorisation.
+    mitigations: [Signed payment requests]
+  - name: Acquirer outage
+    category: Availability
+    description: The acquiring bank's API is unavailable and payments fail.
+    mitigations: [Second acquirer failover]
+
+mitigations:
+  - { name: 3-D Secure step-up, category: Fraud, description: Strong customer authentication for risky payments. }
+  - { name: Velocity limits, category: Fraud, description: "Limit attempts per card, device and IP address." }
+  - { name: Bot detection, category: Fraud, description: Challenge or block automated checkout traffic. }
+  - { name: PAN tokenisation, category: Cardholder data, description: Replace card numbers with tokens outside the vault. }
+  - { name: Log scrubbing, category: Cardholder data, description: Mask card data before it is logged. }
+  - { name: Signed payment requests, category: Integrity, description: Sign amount and currency end to end. }
+  - { name: Second acquirer failover, category: Availability, description: Route to a second acquirer when one fails. }
