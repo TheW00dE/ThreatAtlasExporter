@@ -120,7 +120,17 @@ _MODEL_FIELDS = [
     "open_threat_count",
     "completed_at",
 ]
-_ELEMENT_FIELDS = ["id", "label", "type", "kind", "diagram", "diagram_id", "threat_count", "mitigation_count"]
+_ELEMENT_FIELDS = [
+    "id",
+    "label",
+    "has_label",
+    "type",
+    "kind",
+    "diagram",
+    "diagram_id",
+    "threat_count",
+    "mitigation_count",
+]
 _PRODUCT_FIELDS = [
     "id",
     "name",
@@ -409,6 +419,7 @@ def _element_fields(e: Element, d: DiagramView) -> dict[str, Any]:
     return {
         "id": e.id,
         "label": e.label,
+        "has_label": e.has_label,
         "type": e.type,
         "kind": e.kind,
         "diagram": d.name,

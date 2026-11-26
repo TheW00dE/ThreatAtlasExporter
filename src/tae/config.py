@@ -124,7 +124,7 @@ def _profile_from_dict(name: str, data: dict[str, Any], path: Path) -> Profile:
         return Profile(
             name=name,
             url=data.get("url"),
-            verify_tls=bool(data.get("verify_tls", True)),
+            verify_tls=_profile_bool(data.get("verify_tls", True), f"[profiles.{name}] verify_tls"),
             ca_bundle=data.get("ca_bundle"),
             timeout=float(data.get("timeout", DEFAULT_TIMEOUT)),
             retries=int(data.get("retries", DEFAULT_RETRIES)),
@@ -216,6 +216,15 @@ def resolve_token(
     if token:
         return token, "keyring"
     return None, None
+
+
+def _profile_bool(value: Any, name: str) -> bool:
+    """A TOML boolean, or a string such as "false"; anything else is an error."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return _parse_bool(value, name)
+    raise ConfigError(f"{name} must be true or false, got {value!r}")
 
 
 def _parse_bool(value: str, name: str) -> bool:

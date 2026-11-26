@@ -35,8 +35,9 @@ class Element:
     id: str
     kind: str  # "node" or "edge"
     type: str  # process | datastore | external | boundary | flow | <unknown>
-    label: str
+    label: str  # falls back to the ID when the element has no label
     raw: dict[str, Any]
+    has_label: bool = True
     parent_id: str | None = None
     source: str | None = None
     target: str | None = None
@@ -220,6 +221,7 @@ def extract_elements(diagram: Diagram) -> dict[str, Element]:
             kind="node",
             type=node_type,
             label=str(data.get("label") or node_id),
+            has_label=bool(str(data.get("label") or "").strip()),
             raw=node,
             parent_id=_opt_str(node.get("parentId") or node.get("parentNode")),
         )
@@ -234,6 +236,7 @@ def extract_elements(diagram: Diagram) -> dict[str, Element]:
             kind="edge",
             type="flow",
             label=str(label) if label else edge_id,
+            has_label=bool(str(label or "").strip()),
             raw=edge,
             source=_opt_str(edge.get("source")),
             target=_opt_str(edge.get("target")),

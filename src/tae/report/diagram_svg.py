@@ -184,16 +184,22 @@ def _badge(x: float, y: float, count: int, severity: str | None) -> str:
     )
 
 
-def _worst(view: DiagramView, element_id: str) -> tuple[int, str | None]:
-    threats = view.threats_on(element_id)
+def _worst(view: DiagramView, element_id: str, visible: set[int] | None) -> tuple[int, str | None]:
+    threats = [t for t in view.threats_on(element_id) if visible is None or t.id in visible]
     if not threats:
         return 0, None
     worst = max(threats, key=lambda t: t.severity_rank)
     return len(threats), worst.severity
 
 
-def render_svg(view: DiagramView, *, annotate_threats: bool = True) -> str | None:
-    """Return SVG markup, or ``None`` if the diagram has no nodes."""
+def render_svg(
+    view: DiagramView, *, annotate_threats: bool = True, visible: set[int] | None = None
+) -> str | None:
+    """Return SVG markup, or ``None`` if the diagram has no nodes.
+
+    ``visible`` limits the threat badges to these diagram-threat IDs (the threats the
+    report shows after scope and filters), so badges agree with the report's tables.
+    """
     boxes = layout(view)
     if not boxes:
         return None
@@ -291,7 +297,7 @@ def render_svg(view: DiagramView, *, annotate_threats: bool = True) -> str | Non
             )
             parts.append(_text_block([text], lx, ly, 9, "#374151"))
         if annotate_threats:
-            count, sev = _worst(view, edge.id)
+            count, sev = _worst(view, edge.id, visible)
             if count:
                 bx = lx + (len(label[:28]) * 2.7 + 14 if label else 12)
                 parts.append(_badge(bx, ly - 8, count, sev))
@@ -332,7 +338,7 @@ def render_svg(view: DiagramView, *, annotate_threats: bool = True) -> str | Non
             parts.append(_text_block(_wrap(e.label, b.w - 10, 10, 2), x + b.w / 2, y + b.h / 2, 10))
             badge_at = (x + b.w, y)
         if annotate_threats:
-            count, sev = _worst(view, e.id)
+            count, sev = _worst(view, e.id, visible)
             if count:
                 parts.append(_badge(badge_at[0], badge_at[1], count, sev))
 
