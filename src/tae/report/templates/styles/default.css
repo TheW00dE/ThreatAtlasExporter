@@ -140,3 +140,5 @@ table.elements td:nth-child(2) { width: 22mm; color: #4b5563; }
 .risk-head { margin-bottom: 4pt; }
 .catalog-entry { margin: 0 0 7pt; break-inside: avoid; }
 .catalog-entry p { margin: 2pt 0 0; color: #374151; font-size: 8.5pt; }
+table.matrix .lvl-name { font-size: 6.5pt; color: #6b7280; font-weight: normal; max-width: 13mm; line-height: 1.1; }
+table.scale td:first-child { width: 12mm; }

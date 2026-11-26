@@ -187,6 +187,11 @@ class RiskMatrixSection(_Section):
     page_break: bool = False
 
 
+class RiskScaleSection(_Section):
+    type: Literal["risk_scale"]
+    page_break: bool = False
+
+
 ThreatColumn = Literal[
     "ref",
     "threat",
@@ -271,6 +276,7 @@ Section = Annotated[
     | ProductInfoSection
     | DiagramSection
     | RiskMatrixSection
+    | RiskScaleSection
     | ThreatTableSection
     | MitigationTableSection
     | AcceptedRisksSection
@@ -286,6 +292,7 @@ def default_sections() -> list[Any]:
         TocSection(type="toc"),
         ExecutiveSummarySection(type="executive_summary"),
         RiskMatrixSection(type="risk_matrix", residual=True),
+        RiskScaleSection(type="risk_scale"),
         ProductInfoSection(type="product_info"),
         DiagramSection(type="diagram"),
         ThreatTableSection(type="threat_table"),
@@ -308,6 +315,11 @@ class ReportDefinition(Strict):
     scope: Scope = Field(default_factory=Scope)
     filters: Filters = Field(default_factory=Filters)
     validation: ValidationSettings = Field(default_factory=ValidationSettings)
+    risk_scales: list[str] = Field(
+        default_factory=list,
+        description="Framework or risk-scale files (relative to this file) whose custom risk scales "
+        "set threat severities, the risk matrix and the risk scale section.",
+    )
     sections: list[Section] = Field(default_factory=default_sections, min_length=1)
 
     # Directory the definition was loaded from; relative paths resolve against it.

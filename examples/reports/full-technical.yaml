@@ -32,6 +32,9 @@ filters:
   statuses: null                  # e.g. [identified, accepted]
   categories: null
 
+# Your own risk scale(s), from framework or risk-scale files (see docs/import.md).
+# risk_scales: [../models/payments-framework.yaml]
+
 validation:
   # rules: ./validation.yaml      # custom rules, level overrides, thresholds
   on_failure: annotate            # block | annotate | warn | ignore
@@ -51,6 +54,7 @@ sections:
   - type: executive_summary
   - type: risk_matrix
     residual: true
+  - type: risk_scale              # what the likelihood/impact levels and severity bands mean
   - type: product_info
   - type: diagram
     annotate_threats: true        # severity-coloured threat counts on elements

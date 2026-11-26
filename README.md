@@ -5,7 +5,8 @@ A command-line tool for [OWASP ThreatAtlas](https://github.com/OWASP/www-project
 - **pulls** a product's diagrams, threat models, threats and mitigations into a snapshot file,
 - **validates** them against built-in and custom rules ([docs/validation-rules.md](docs/validation-rules.md)),
 - **renders** a PDF report per product from a configurable report definition ([docs/report-definition.md](docs/report-definition.md)),
-- **creates and updates** threat-model data from the command line or from YAML *(planned)*.
+- **imports** custom frameworks (with your own risk scale) and complete product threat models
+  from YAML, keeping ThreatAtlas in sync with the file ([docs/import.md](docs/import.md)).
 
 See [docs/PLAN.md](docs/PLAN.md) for the design and roadmap.
 
@@ -116,8 +117,9 @@ Tokens are never read from the config file, so it can be committed or mounted fr
 ## Commands
 
 ```text
+tae import      FILE [--dry-run] [--prune] [--yes] | --schema framework|threat-model
 tae pull        --product ID|NAME [-f FILE | --stdout]
-tae validate    [SNAPSHOT | --product ID|NAME] [--rules FILE] [--format table|json|junit|codequality]
+tae validate    [SNAPSHOT | --product ID|NAME] [--rules FILE] [--risk-scale FILE]... [--format table|json|junit|codequality]
                 [--fail-level error|warning|info|never] [--as-of DATE] [-f FILE]
 tae rules       [--rules FILE]
 tae report      build [SNAPSHOT | --product ID|NAME] [-d DEFINITION] [-f PDF] [--html FILE]

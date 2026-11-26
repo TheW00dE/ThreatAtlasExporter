@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, ValidationError, model_validator
 
 from tae.errors import InputError
 from tae.snapshot.view import DiagramView, Element, MitigationItem, ProductView, ThreatItem
@@ -53,6 +53,18 @@ class ValidationConfig(BaseModel):
     levels: dict[str, Level] = Field(default_factory=dict, description="Override a rule's level.")
     params: Params = Field(default_factory=Params)
     rules: list[Any] = Field(default_factory=list, description="Custom rules (see docs/validation-rules.md).")
+    risk_scales: list[str] = Field(
+        default_factory=list,
+        description="Framework or risk-scale files whose custom scales set threat severities.",
+    )
+    _base_dir: Path = PrivateAttr(default_factory=Path.cwd)
+
+    def scale_paths(self) -> list[Path]:
+        """``risk_scales`` entries, relative to the config file's directory."""
+        return [
+            p if p.is_absolute() else self._base_dir / p
+            for p in (Path(x).expanduser() for x in self.risk_scales)
+        ]
 
     @model_validator(mode="after")
     def _parse_custom(self) -> ValidationConfig:
@@ -67,7 +79,9 @@ class ValidationConfig(BaseModel):
             raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
         except (OSError, yaml.YAMLError) as exc:
             raise ValidationConfigError(f"Cannot read validation config {path}: {exc}") from exc
-        return cls.from_data(raw, str(path))
+        config = cls.from_data(raw, str(path))
+        config._base_dir = path.resolve().parent
+        return config
 
     @classmethod
     def from_data(cls, raw: Any, source: str = "validation config") -> ValidationConfig:

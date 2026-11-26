@@ -12,6 +12,7 @@ from rich.text import Text
 from tae.cli.common import ExitCode, console, err_console, get_state
 from tae.cli.inputs import obtain_snapshot
 from tae.output import OutputFormat, print_structured
+from tae.risk import load_risk_scales
 from tae.snapshot import build_view
 from tae.validate import FailLevel, ValidationConfig, builtin_rules, run
 from tae.validate.engine import active_rules
@@ -40,6 +41,12 @@ def validate(
     as_of: str | None = typer.Option(
         None, "--as-of", help="Date for review-date checks (YYYY-MM-DD). [default: today]"
     ),
+    risk_scale: list[Path] = typer.Option(
+        [],
+        "--risk-scale",
+        help="Framework or risk-scale file with a custom risk scale (repeatable).",
+        show_default=False,
+    ),
     location: str | None = typer.Option(
         None, "--location", help="File path reported in Code Quality output. [default: the snapshot path]"
     ),
@@ -52,7 +59,8 @@ def validate(
     config = ValidationConfig.load(rules) if rules else ValidationConfig()
     snap = obtain_snapshot(state, snapshot, product)
     day = _parse_date(as_of)
-    result = run(build_view(snap), config, as_of=day)
+    scales = load_risk_scales([*risk_scale, *config.scale_paths()])
+    result = run(build_view(snap, scales), config, as_of=day)
 
     if fmt is FindingsFormat.table and output_file is None:
         render_table(console, result, fail_level)

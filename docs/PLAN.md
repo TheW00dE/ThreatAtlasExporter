@@ -412,7 +412,7 @@ The token is resolved in this order: `--token`, then the `TAE_TOKEN` env var (th
 | 5 | Report advanced | **Per-product asset folders** (images, PDF appendices, diagram replacement), threat badges on diagrams, risk heatmap and charts, branding, custom templates (corporate layout once approved), `report init/schema`, `tae export` one-shot and multi-product, **k8s manifests**, GitLab consumer template | No |
 | 5b | Report portal | `tae serve`: sign-in with the user's ThreatAtlas token, product list, generate on demand, run status, download PDF, snapshot and findings with per-request access checks; PVC storage (keep all); optional OIDC or proxy SSO; audit log, CSRF and security headers; k8s Deployment/Service/Ingress/PVC/NetworkPolicy manifests | Yes, to test end to end |
 | 6 | Write ops (imperative) | CRUD for products, diagrams (+ versions, JSON import/export), custom frameworks, models, catalog threats and mitigations, diagram-threat and diagram-mitigation instances; **`tae risks` accept/approve/reject/pending**; dry-run; name resolution | Yes |
-| 7 | Declarative apply | `tae apply` with diff, prune, idempotency, covering frameworks → products → diagrams → models → threats/mitigations → acceptance requests | Yes |
+| 7 (largely done via `tae import`) | Declarative apply | `tae apply` with diff, prune, idempotency, covering frameworks → products → diagrams → models → threats/mitigations → acceptance requests | Yes |
 
 ✅ done; * built and tested against fixtures, real fixtures still to be recorded.
 
@@ -444,6 +444,8 @@ Phases 0–5 deliver the reporting goal; phases 6–7 deliver the create/update 
 | 13 | Retention | Keep every report, with its snapshot and findings |
 | 14 | Portal permissions | Each user signs in with their own ThreatAtlas API token; the portal acts as them, and access to stored reports is re-checked against ThreatAtlas on each request |
 | 15 | Portal SSO | Not decided yet; build both built-in OIDC and trusted-proxy headers (plus none), chosen by configuration |
+| 16 | YAML import | `tae import` takes a framework file (custom methodology, catalogue, own risk scale) or a threat-model file (product, diagrams, threat models, threats and mitigations) and syncs it into ThreatAtlas: match by name, plan first, `--dry-run`, deletes only with `--prune` (see docs/import.md). This brings forward much of phase 7 |
+| 17 | Custom risk scale | Defined in YAML; ThreatAtlas keeps its own scoring, and `tae` uses the custom bands for that framework's threats in validation and reports |
 
 ### Still open
 

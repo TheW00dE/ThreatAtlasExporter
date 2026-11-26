@@ -4,11 +4,11 @@
   <tr><th rowspan="6" class="axis-y"><span>Likelihood</span></th></tr>
   {% for row in rows %}
   <tr>
-    <th class="axis-label">{{ row[0].likelihood }}</th>
+    <th class="axis-label">{{ row[0].likelihood }}{% if s.data.likelihood_labels %}<div class="lvl-name">{{ s.data.likelihood_labels[row[0].likelihood] }}</div>{% endif %}</th>
     {% for c in row %}<td class="cell sev-bg-{{ c.severity }}">{% if c.count %}{{ c.count }}{% endif %}</td>{% endfor %}
   </tr>
   {% endfor %}
-  <tr><td></td><td></td>{% for i in range(1, 6) %}<th class="axis-label">{{ i }}</th>{% endfor %}</tr>
+  <tr><td></td><td></td>{% for i in range(1, 6) %}<th class="axis-label">{{ i }}{% if s.data.impact_labels %}<div class="lvl-name">{{ s.data.impact_labels[i] }}</div>{% endif %}</th>{% endfor %}</tr>
   <tr><td></td><td></td><th colspan="5" class="axis-x">Impact</th></tr>
 </table>
 {% endmacro %}
@@ -16,4 +16,5 @@
   {{ grid(s.data.inherent, "Inherent risk") }}
   {% if s.data.residual %}{{ grid(s.data.residual, "Residual risk") }}{% endif %}
 </div>
-<p class="note">Cells show the number of threats at each likelihood × impact. Colours follow ThreatAtlas's bands: score ≥ 20 critical, ≥ 12 high, ≥ 6 medium, otherwise low.{% if s.data.unscored %} {{ s.data.unscored }} threat(s) are not scored and are not shown.{% endif %}</p>
+{% set b = s.data.bands %}
+<p class="note">Cells show the number of threats at each likelihood × impact. Colours follow {% if s.data.scale_name %}the {{ s.data.scale_name }}{% elif s.data.likelihood_labels %}the custom risk scale{% else %}ThreatAtlas's bands{% endif %}: score ≥ {{ b.critical }} critical, ≥ {{ b.high }} high, ≥ {{ b.medium }} medium, otherwise low.{% if s.data.mixed %} Threats here use different risk scales, so the colours show ThreatAtlas's default bands; each threat's own severity is in the threat tables.{% endif %}{% if s.data.unscored %} {{ s.data.unscored }} threat(s) are not scored and are not shown.{% endif %}</p>
