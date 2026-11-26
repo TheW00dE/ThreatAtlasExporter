@@ -402,3 +402,130 @@ def test_builtin_presets_are_valid() -> None:
 
     for preset in load_presets():
         ReportDefinition.load(preset.path)
+
+
+# ── regressions from the code audit ─────────────────────────────────────────────
+
+
+class RecordingKeyring:
+    def __init__(self, fail_on_set: bool = False) -> None:
+        self.stored: dict[str, str] = {}
+        self.fail_on_set = fail_on_set
+
+    def set_password(self, service: str, user: str, token: str) -> None:
+        if self.fail_on_set:
+            raise RuntimeError("No recommended backend was available")
+        self.stored[user] = token
+
+    def delete_password(self, service: str, user: str) -> None:
+        self.stored.pop(user, None)
+
+    def get_password(self, service: str, user: str) -> str | None:
+        return self.stored.get(user)
+
+
+def test_sign_out_always_forgets_remembered_token(
+    desktop: tuple[DesktopApp, Browser], fake: FakeThreatAtlas, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    keyring = RecordingKeyring()
+    monkeypatch.setattr("tae.config._keyring", lambda: keyring)
+    _, b = desktop
+    b.launch()
+    b.sign_in(fake.url, remember="1")
+    assert keyring.stored == {fake.url: TOKEN}
+    assert b.post("/signout").status == 303  # the plain Sign out button, no extra fields
+    assert keyring.stored == {}
+
+
+def test_revoked_token_is_forgotten(
+    signed_in: tuple[DesktopApp, Browser], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    app, b = signed_in
+    keyring = RecordingKeyring()
+    keyring.stored[app.connection.url or ""] = "ta_revoked"
+    monkeypatch.setattr("tae.config._keyring", lambda: keyring)
+    app.connection.token = "ta_revoked"
+    assert b.get("/").status == 303
+    assert keyring.stored == {}
+
+
+def test_remember_without_credential_store_still_signs_in(
+    desktop: tuple[DesktopApp, Browser], fake: FakeThreatAtlas, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("tae.config._keyring", lambda: RecordingKeyring(fail_on_set=True))
+    app, b = desktop
+    b.launch()
+    r = b.sign_in(fake.url, remember="1")
+    assert r.status == 303
+    assert app.signed_in and not app.connection.remembered
+    page = b.get("/").text
+    assert "could not be remembered" in page and "Payments API" in page
+    assert "could not be remembered" not in b.get("/").text  # shown once
+
+
+def test_run_survives_failing_status_writes(
+    signed_in: tuple[DesktopApp, Browser], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    app, b = signed_in
+    original = app.store.save
+    calls = {"n": 0}
+
+    def flaky_save(run_dir: Path, record: RunRecord) -> None:
+        calls["n"] += 1
+        if calls["n"] > 1:  # the first save (run created) works; every later one fails
+            raise PermissionError(13, "Access is denied")
+        original(run_dir, record)
+
+    monkeypatch.setattr(app.store, "save", flaky_save)
+    r = b.post("/products/12/generate", {"preset": "full-technical"})
+    run_id = r.headers["location"].rsplit("/", 1)[-1]
+    app.runs.wait()
+    assert app.runs.active_run(12) is None  # the product is released despite the failures
+    run_dir = app.store.run_dir(12, run_id)
+    assert run_dir is not None and (run_dir / "report.pdf").is_file()  # progress errors didn't fail the run
+    monkeypatch.setattr(app.store, "save", original)
+    second = b.post("/products/12/generate", {"preset": "executive-summary"}).headers["location"]
+    assert second.rsplit("/", 1)[-1] != run_id
+    app.runs.wait()
+
+
+def test_retry_handles_transient_sharing_violations() -> None:
+    from tae.desktop.runs import _retry
+
+    attempts = {"n": 0}
+
+    def sometimes() -> str:
+        attempts["n"] += 1
+        if attempts["n"] < 3:
+            raise PermissionError(13, "in use")
+        return "ok"
+
+    assert _retry(sometimes, delay=0) == "ok"
+    with pytest.raises(PermissionError):
+        _retry(lambda: (_ for _ in ()).throw(PermissionError(13, "in use")), attempts=2, delay=0)
+
+
+def test_builtin_presets_have_no_placeholder_organisation() -> None:
+    from tae.report.definition import ReportDefinition
+
+    for preset in load_presets():
+        assert ReportDefinition.load(preset.path).branding.organisation is None, preset.id
+
+
+@pytest.mark.parametrize(
+    ("target", "expected"),
+    [
+        ("/products/12", "/products/12"),
+        ("/", "/"),
+        ("//evil.example/x", "/"),
+        ("/\\evil.example", "/"),
+        ("https://evil.example", "/"),
+        ("javascript:alert(1)", "/"),
+        ("/a\r\nSet-Cookie: x=1", "/"),
+        ("", "/"),
+    ],
+)
+def test_safe_local_path(target: str, expected: str) -> None:
+    from tae.desktop.server import safe_local_path
+
+    assert safe_local_path(target) == expected

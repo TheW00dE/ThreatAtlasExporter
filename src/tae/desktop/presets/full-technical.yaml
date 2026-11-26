@@ -12,7 +12,7 @@ subtitle: "{{ product.name }}"
 page_size: A4                     # A4 | Letter
 
 branding:
-  organisation: "Example Corp"
+  # organisation: "Your organisation"   # shown on the cover and in the footer
   # logo: ./logo.png              # PNG, JPG or SVG
   primary_color: "#1f3a5f"
   accent_color: "#2f80ed"

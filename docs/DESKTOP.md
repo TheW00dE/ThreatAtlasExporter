@@ -102,8 +102,10 @@ it isn't found automatically.
   framing.
 - **Your token:** it stays in the app's memory and is never written to disk or logs. If you
   tick *Remember it*, it is stored in the operating system's credential store (Windows
-  Credential Manager, or the Secret Service on Linux). *Sign out* forgets it again, if you
-  choose.
+  Credential Manager, or the Secret Service on Linux). *Sign out* always forgets it again,
+  so the next person to use the computer isn't signed in as you. If the computer has no
+  usable credential store, you're still signed in and the app tells you it couldn't
+  remember the token.
 - **Your permissions:** the app acts with your own ThreatAtlas permissions. It can't show
   you anything ThreatAtlas wouldn't.
 - **TLS:** connections to ThreatAtlas are verified against your operating system's

@@ -16,12 +16,13 @@ import logging
 import re
 import secrets
 import threading
+import time
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, date, datetime
 from importlib import resources
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar
 
 from tae import __version__
 from tae.cli.pull import slugify
@@ -143,14 +144,16 @@ class ReportStore:
         return d if d.is_dir() else None
 
     def save(self, run_dir: Path, record: RunRecord) -> None:
-        tmp = run_dir / "run.json.tmp"
+        tmp = run_dir / f"run.json.{threading.get_ident()}.tmp"
         tmp.write_text(json.dumps(asdict(record), indent=2), encoding="utf-8")
-        tmp.replace(run_dir / "run.json")
+        # On Windows, replacing a file fails while another thread has it open (the run
+        # page reads run.json every few seconds), so retry briefly.
+        _retry(lambda: tmp.replace(run_dir / "run.json"))
 
     def load(self, run_dir: Path) -> RunRecord | None:
         try:
-            data = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
-            return RunRecord(**data)
+            text = _retry(lambda: (run_dir / "run.json").read_text(encoding="utf-8"))
+            return RunRecord(**json.loads(text))
         except (OSError, ValueError, TypeError):
             return None
 
@@ -197,6 +200,21 @@ class ReportStore:
                     self.save(d, record)
                     n += 1
         return n
+
+
+T = TypeVar("T")
+
+
+def _retry(action: Callable[[], T], attempts: int = 10, delay: float = 0.05) -> T:
+    """Run ``action``, retrying on PermissionError (Windows sharing violations)."""
+    for attempt in range(attempts):
+        try:
+            return action()
+        except PermissionError:
+            if attempt == attempts - 1:
+                raise
+            time.sleep(delay)
+    raise AssertionError("unreachable")  # pragma: no cover
 
 
 # ── generation ──────────────────────────────────────────────────────────────────
@@ -272,7 +290,10 @@ class RunManager:
     ) -> None:
         def step(message: str) -> None:
             record.message = message
-            self.store.save(run_dir, record)
+            try:
+                self.store.save(run_dir, record)
+            except OSError:  # a progress update isn't worth failing the report for
+                log.warning("Could not save progress for run %s", record.run_id, exc_info=True)
 
         try:
             definition = ReportDefinition.load(preset.path)
@@ -310,9 +331,14 @@ class RunManager:
             record.message = str(exc).splitlines()[0][:500] if str(exc) else exc.__class__.__name__
         finally:
             record.finished_at = _now()
-            self.store.save(run_dir, record)
-            with self._lock:
-                self._active.pop(product.id, None)
+            try:
+                self.store.save(run_dir, record)
+            except OSError:
+                log.exception("Could not save the outcome of run %s", record.run_id)
+            finally:
+                # Always release the product, or it would stay "being generated" forever.
+                with self._lock:
+                    self._active.pop(product.id, None)
 
     def _write_findings(self, run_dir: Path, record: RunRecord, data: dict[str, Any]) -> None:
         (run_dir / "findings.json").write_text(

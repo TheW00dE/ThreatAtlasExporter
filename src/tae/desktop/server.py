@@ -36,7 +36,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from importlib import resources
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qs, quote, urlparse
+from urllib.parse import parse_qs, quote, urlparse, urlsplit
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
@@ -44,7 +44,7 @@ from tae import __version__
 from tae.client import ThreatAtlasClient
 from tae.client import errors as api_errors
 from tae.client.http import normalize_base_url
-from tae.config import keyring_available, keyring_delete, keyring_set
+from tae.config import ConfigError, keyring_available, keyring_delete, keyring_set
 from tae.desktop.runs import DOWNLOADABLE, Preset, ReportStore, RunManager
 from tae.models.api import User
 from tae.report.pdf import PdfEngine
@@ -78,6 +78,7 @@ class Connection:
     token: str | None = None
     user: User | None = None
     remembered: bool = False
+    notice: str | None = None  # shown once on the next page, e.g. "token could not be remembered"
 
 
 @dataclass
@@ -119,17 +120,35 @@ class DesktopApp:
         with self._lock:
             self.connection = Connection(url=url, token=token, user=user)
         if remember:
-            keyring_set(url, token)
-            self.connection.remembered = True
+            try:
+                keyring_set(url, token)
+                self.connection.remembered = True
+            except ConfigError as exc:
+                # Signing in worked; only remembering failed (e.g. no credential store).
+                log.warning("Could not remember the token: %s", exc)
+                self.connection.notice = (
+                    "You're signed in, but your token could not be remembered on this computer "
+                    "(no usable credential store). You'll need to sign in again next time."
+                )
         log.info("Signed in to %s as %s", url, user.username)
         return user
 
-    def sign_out(self, forget: bool) -> None:
+    def sign_out(self) -> None:
+        """Sign out and forget any token remembered for this ThreatAtlas address.
+
+        Always forgetting is deliberate: on a shared computer, "Sign out" must mean the
+        next person to start the app is not signed in as you.
+        """
         with self._lock:
             url = self.connection.url
             self.connection = Connection(url=url)
-        if forget and url:
+        if url:
             keyring_delete(url)
+
+    def take_notice(self) -> str | None:
+        with self._lock:
+            notice, self.connection.notice = self.connection.notice, None
+        return notice
 
     @property
     def signed_in(self) -> bool:
@@ -224,7 +243,7 @@ class Handler(BaseHTTPRequestHandler):
                 form = parsed_form
             self._route(method, path, parse_qs(parsed.query), form)
         except api_errors.AuthenticationError:
-            self.app.sign_out(forget=False)
+            self.app.sign_out()  # also drops a remembered token that no longer works
             self._redirect("/?expired=1")
         except api_errors.ThreatAtlasError as exc:
             self._page(
@@ -319,14 +338,12 @@ class Handler(BaseHTTPRequestHandler):
             self._signin(form)
             return
         if method == "POST" and path == "/signout":
-            app.sign_out(forget=form.get("forget") == "1")
+            app.sign_out()
             self._redirect("/")
             return
         if method == "POST" and path == "/open-folder":
             app.open_folder(app.store.root)
-            back = form.get("back", "/")
-            # Only local paths: "//host" would be a protocol-relative redirect elsewhere.
-            self._redirect(back if back.startswith("/") and not back.startswith("//") else "/")
+            self._redirect(safe_local_path(form.get("back", "/")))
             return
         if not app.signed_in:
             self._redirect("/")
@@ -381,7 +398,9 @@ class Handler(BaseHTTPRequestHandler):
         with self.app.client() as client:
             products = sorted(client.products.list(), key=lambda p: p.name.casefold())
         counts = self.app.store.counts()
-        self._page(HTTPStatus.OK, "products.html.j2", products=products, counts=counts)
+        self._page(
+            HTTPStatus.OK, "products.html.j2", products=products, counts=counts, notice=self.app.take_notice()
+        )
 
     def _product(self, product_id: int) -> None:
         try:
@@ -498,6 +517,25 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "max-age=300")
         self.end_headers()
         self.wfile.write(body)
+
+
+def safe_local_path(target: str) -> str:
+    """Return ``target`` if it is a path on this app, else ``/``.
+
+    Browsers read ``//host`` and ``/\\host`` as other sites, so both are refused, as is
+    anything with a scheme, a host, a backslash or control characters.
+    """
+    parts = urlsplit(target)
+    if (
+        not target.startswith("/")
+        or target.startswith("//")
+        or "\\" in target
+        or parts.scheme
+        or parts.netloc
+        or any(ord(c) < 32 or ord(c) == 127 for c in target)
+    ):
+        return "/"
+    return target
 
 
 def make_server(app: DesktopApp, port: int = 0) -> ThreadingHTTPServer:

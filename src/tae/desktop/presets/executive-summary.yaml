@@ -3,7 +3,7 @@ title: "Threat Model Summary"
 subtitle: "{{ product.name }}"
 
 branding:
-  organisation: "Example Corp"
+  # organisation: "Your organisation"   # shown on the cover and in the footer
   classification: "INTERNAL"
 
 filters:

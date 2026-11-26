@@ -1,5 +1,6 @@
 {% extends "base.html.j2" %}
 {% block main %}
+{% if notice %}<p class="alert info">{{ notice }}</p>{% endif %}
 <h1>Products</h1>
 <p class="lead">Pick a product to generate a report or download an earlier one.</p>
 {% if not products %}
