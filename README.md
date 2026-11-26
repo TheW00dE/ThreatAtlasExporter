@@ -62,8 +62,9 @@ uv sync
 uv run tae --help
 ```
 
-To store a token in the OS keyring on a workstation, install the `keyring` extra:
-`uv sync --extra keyring`.
+`tae auth login` stores a token in the OS keyring (Windows Credential Manager, macOS
+Keychain, Secret Service). In containers there's usually no keyring; use `TAE_TOKEN` or
+`TAE_TOKEN_FILE` there.
 
 ## Authenticate
 

@@ -282,7 +282,7 @@ def _parse_bool(value: str, name: str) -> bool:
     raise ConfigError(f"{name} must be true or false, got {value!r}")
 
 
-# ── Keyring (optional dependency, workstation use) ───────────────────────────────
+# ── Keyring (workstations; containers usually have no backend) ───────────────────────────────
 
 
 def _keyring() -> Any:
@@ -312,7 +312,7 @@ def keyring_set(url: str, token: str) -> None:
     kr = _keyring()
     if kr is None:
         raise ConfigError(
-            "Keyring support is not installed. Install with: pip install 'threatatlas-exporter[keyring]'"
+            "Keyring support is not available in this installation. Use TAE_TOKEN or TAE_TOKEN_FILE instead."
         )
     try:
         kr.set_password(KEYRING_SERVICE, url, token)

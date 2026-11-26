@@ -3,10 +3,8 @@
 from __future__ import annotations
 
 import os
-import ssl
 from pathlib import Path
 
-import truststore
 import typer
 
 from tae.cli.common import console, err_console, get_state
@@ -15,6 +13,7 @@ from tae.config import resolve
 from tae.desktop.runs import ReportStore, RunManager, load_presets
 from tae.desktop.server import DesktopApp, engine_label, launch_url, make_server, open_browser
 from tae.errors import EnvironmentProblem
+from tae.output import safe_text
 from tae.report.pdf import PdfEngine, resolve_engine
 
 
@@ -53,14 +52,11 @@ def desktop(
         engine = resolve_engine(pdf_engine)
         label = engine_label(engine)
     except EnvironmentProblem as exc:
-        err_console.print(f"[yellow]Warning:[/yellow] {exc}", highlight=False)
+        err_console.print(f"Warning: {safe_text(exc)}", markup=False, highlight=False)
         engine, label = pdf_engine, "not available"
 
+    # Uses the operating system's certificate store unless a CA bundle is configured.
     client_options = settings.client_options()
-    if client_options.get("verify") is True:
-        # Trust the operating system's certificate store (Windows, macOS, Linux), so an
-        # internal CA the desktop already trusts works without configuring a CA bundle.
-        client_options["verify"] = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
 
     store = ReportStore(root)
     interrupted = store.mark_interrupted()
@@ -76,12 +72,15 @@ def desktop(
         try:
             user = app.sign_in(settings.url, settings.token)
             console.print(
-                f"Signed in to {settings.url} as {user.username} (token from {settings.token_source}).",
+                f"Signed in to {settings.url} as {safe_text(user.username)} "
+                f"(token from {settings.token_source}).",
                 markup=False,
                 highlight=False,
             )
         except (api_errors.ThreatAtlasError, ValueError) as exc:
-            err_console.print(f"Could not sign in automatically: {exc}", markup=False, highlight=False)
+            err_console.print(
+                f"Could not sign in automatically: {safe_text(exc)}", markup=False, highlight=False
+            )
 
     server = make_server(app, port)
     link = launch_url(app)

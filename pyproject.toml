@@ -24,10 +24,6 @@ dependencies = [
     "truststore>=0.10",
 ]
 
-[project.optional-dependencies]
-# OS keyring support for `tae auth login` on workstations. Not used in containers.
-keyring = ["keyring>=25"]
-
 [project.scripts]
 tae = "tae.cli.app:main"
 tae-desktop = "tae.desktop.main:main"
