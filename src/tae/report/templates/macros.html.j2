@@ -1,46 +1,40 @@
 {% macro sev(value) -%}
-<span class="sev sev-{{ value or 'none' }}">{{ value or "unscored" }}</span>
+<span class="sev sev-{{ value or 'none' }}">{{ t("severity." ~ (value or "unscored")) }}</span>
 {%- endmacro %}
 
 {% macro status(value) -%}
-<span class="status st-{{ value }}">{{ value }}</span>
+<span class="status st-{{ value }}">{{ t("status." ~ value) }}</span>
 {%- endmacro %}
 
-{% macro score(t) -%}
-{% if t.risk_score is not none %}{{ t.risk_score }}{% else %}<span class="muted">—</span>{% endif %}
+{% macro score(x) -%}
+{% if x.risk_score is not none %}{{ x.risk_score }}{% else %}<span class="muted">—</span>{% endif %}
 {%- endmacro %}
 
 {% macro opt(value) -%}
 {% if value is not none and value != "" %}{{ value }}{% else %}<span class="muted">—</span>{% endif %}
 {%- endmacro %}
 
-{% set THREAT_HEADERS = {
-  "ref": "Ref", "threat": "Threat", "category": "Category", "element": "Element", "diagram": "Diagram",
-  "framework": "Framework", "likelihood": "L", "impact": "I", "score": "Score", "severity": "Severity",
-  "residual": "Residual", "status": "Status", "mitigations": "Mitigations", "description": "Description",
-  "comments": "Comments"} %}
-
 {% macro threat_header(col) -%}
-<th class="col-{{ col }}">{{ THREAT_HEADERS[col] }}</th>
+<th class="col-{{ col }}">{{ t("column." ~ col) }}</th>
 {%- endmacro %}
 
-{% macro threat_cell(t, col) -%}
-{% if col == "ref" %}<td class="col-ref ref">{{ t.ref }}</td>
-{% elif col == "threat" %}<td class="col-threat"><strong>{{ t.name }}</strong></td>
-{% elif col == "category" %}<td>{{ opt(t.category) }}</td>
-{% elif col == "element" %}<td class="col-element">{{ t.element_label }}</td>
-{% elif col == "diagram" %}<td>{{ t.diagram.name }}</td>
-{% elif col == "framework" %}<td>{{ opt(t.framework_name) }}</td>
-{% elif col == "likelihood" %}<td class="num">{{ opt(t.record.likelihood) }}</td>
-{% elif col == "impact" %}<td class="num">{{ opt(t.record.impact) }}</td>
-{% elif col == "score" %}<td class="num">{{ score(t) }}</td>
-{% elif col == "severity" %}<td>{{ sev(t.severity) }}</td>
-{% elif col == "residual" %}<td>{% if t.residual_score is not none %}{{ sev(t.residual_severity) }} <span class="muted">({{ t.residual_score }})</span>{% else %}<span class="muted">—</span>{% endif %}</td>
-{% elif col == "status" %}<td>{{ status(t.status) }}</td>
+{% macro threat_cell(x, col) -%}
+{% if col == "ref" %}<td class="col-ref ref">{{ x.ref }}</td>
+{% elif col == "threat" %}<td class="col-threat"><strong>{{ x.name }}</strong></td>
+{% elif col == "category" %}<td>{{ opt(x.category) }}</td>
+{% elif col == "element" %}<td class="col-element">{{ x.element_label }}</td>
+{% elif col == "diagram" %}<td>{{ x.diagram.name }}</td>
+{% elif col == "framework" %}<td>{{ opt(x.framework_name) }}</td>
+{% elif col == "likelihood" %}<td class="num">{{ opt(x.record.likelihood) }}</td>
+{% elif col == "impact" %}<td class="num">{{ opt(x.record.impact) }}</td>
+{% elif col == "score" %}<td class="num">{{ score(x) }}</td>
+{% elif col == "severity" %}<td>{{ sev(x.severity) }}</td>
+{% elif col == "residual" %}<td>{% if x.residual_score is not none %}{{ sev(x.residual_severity) }} <span class="muted">({{ x.residual_score }})</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+{% elif col == "status" %}<td>{{ status(x.status) }}</td>
 {% elif col == "mitigations" %}<td class="col-mitigations">
-  {% for mi in t.mitigations %}<div class="mit-line"><span class="ref">{{ mi.ref }}</span> {{ mi.name }} {{ status(mi.status) }}</div>{% else %}<span class="muted">none</span>{% endfor %}
+  {% for mi in x.mitigations %}<div class="mit-line"><span class="ref">{{ mi.ref }}</span> {{ mi.name }} {{ status(mi.status) }}</div>{% else %}<span class="muted">{{ t("text.none") }}</span>{% endfor %}
 </td>
-{% elif col == "description" %}<td class="col-description">{{ opt(t.description) }}</td>
-{% elif col == "comments" %}<td class="col-description">{{ opt(t.record.comments) }}</td>
+{% elif col == "description" %}<td class="col-description">{{ opt(x.description) }}</td>
+{% elif col == "comments" %}<td class="col-description">{{ opt(x.record.comments) }}</td>
 {% endif %}
 {%- endmacro %}

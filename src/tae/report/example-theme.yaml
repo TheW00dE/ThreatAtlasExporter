@@ -1,0 +1,95 @@
+# ThreatAtlasExporter report theme: the look of a report, separate from its content.
+#
+# Use:     theme: ./theme.yaml      in a report definition (path relative to the definition)
+#     or:  tae report build SNAPSHOT --theme theme.yaml
+# Check:   tae report check report.yaml       (also checks the theme, fonts and images)
+# Schema:  tae report schema --theme -f theme.schema.json
+# Wording: tae report labels                  (every label key and its default text)
+#
+# Every key is optional; anything left out keeps the built-in default.
+# Relative paths are resolved against this file's directory.
+kind: report-theme
+name: Example Corp
+
+branding:
+  organisation: Example Corp
+  # logo: ./logo.svg                # PNG, JPEG, GIF, WebP or SVG
+  classification: INTERNAL
+  footer: Product Security
+
+fonts:
+  body:
+    family: DejaVu Sans               # an installed font, or embed files:
+    # files:
+    #   regular: ./fonts/SourceSans3-Regular.ttf
+    #   bold: ./fonts/SourceSans3-Bold.ttf
+    #   italic: ./fonts/SourceSans3-Italic.ttf
+    #   bold_italic: ./fonts/SourceSans3-BoldItalic.ttf
+  # headings: {family: DejaVu Serif}  # defaults to the body font
+  size: 9.5                           # points
+
+colors:
+  primary: "#0f4c5c"                  # headings, table headers, cover band
+  accent: "#e36414"                   # links
+  text: "#1f2933"
+  secondary_text: "#3e4c59"
+  muted: "#7b8794"
+  # headings: "#0f4c5c"               # default: primary
+  # table_header: "#0f4c5c"           # default: primary
+  table_header_text: "#ffffff"
+  table_stripe: "#f5f7fa"
+  border: "#d9e2ec"
+  # cover_band: "#0f4c5c"             # default: primary
+  cover_text: "#ffffff"
+  classification: "#9a031e"
+  severity:                           # badges, chart bars, diagram badges
+    critical: "#9a031e"
+    high: "#e36414"
+    medium: "#fb8b24"
+    low: "#5f8d4e"
+  # matrix: {...}                     # risk matrix cells; default: lighter severity colours
+
+page:
+  size: A4                            # A4 | A3 | A5 | Letter | Legal | [210mm, 297mm]
+  margins: {top: 22mm, right: 18mm, bottom: 20mm, left: 18mm}
+
+# Running header and footer: left, center and right slots. Placeholders:
+# {{ product.name }} {{ title }} {{ subtitle }} {{ organisation }} {{ classification }}
+# {{ footer }} (organisation · footer text) {{ document.id }} {{ document.version }} {{ report_date }}, and
+# {page} / {pages} for page numbers. "" leaves a slot empty.
+header:
+  left: "{{ product.name }} — {{ title }}"
+  center: "{{ classification }}"
+  right: "{{ document.id }}"
+footer:
+  left: "{{ footer }}"                 # organisation · footer text
+  center: "{{ report_date }}"
+  right: "Page {page} of {pages}"
+
+cover:
+  layout: band                        # band | plain | image
+  band_height: 70mm
+  # background_image: ./cover.png     # for layout: image
+  logo_position: left                 # left | center | right
+  # facts:                            # label/value rows on the cover (placeholders allowed)
+  #   - [Product, "{{ product.name }}"]
+  #   - [Document, "{{ document.id }} v{{ document.version }}"]
+  #   - [Owner, "{{ product.owner_name }}"]
+  #   - [Date, "{{ report_date }}"]
+  show_generated_by: true
+
+numbering: true                       # number sections 1, 2, 3...
+
+# watermark: {text: DRAFT, color: "#9ca3af", opacity: 0.12}
+
+# Replace built-in wording: section titles, column names, field names, severity and
+# status words (`tae report labels` lists them all).
+labels:
+  section.threat_table: Threat register
+  section.mitigation_table: Controls
+  column.mitigation: Control
+  column.mitigations: Controls
+
+# Appended after the built-in stylesheet. Images must be data: URIs.
+# extra_css: |
+#   h1 { text-transform: uppercase; letter-spacing: 0.04em; }

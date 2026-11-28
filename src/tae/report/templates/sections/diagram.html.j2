@@ -1,10 +1,10 @@
 {% if not s.data.diagrams %}<p class="muted">No diagrams in scope.</p>{% endif %}
 {% for dg in s.data.diagrams %}
 <div class="diagram{% if dg.wide %} diagram-wide{% endif %}{% if not loop.first %} page-break{% endif %}">
-  <h2>{{ s.number }}.{{ loop.index }} {{ dg.view.name }}</h2>
+  <h2>{% if s.number %}{{ s.number }}.{{ loop.index }} {% endif %}{{ dg.view.name }}</h2>
   {% for p in dg.description %}<p>{{ p }}</p>{% endfor %}
   {% if dg.models %}
-  <p class="meta">Threat models:
+  <p class="meta">{{ t("text.threat_models") }}:
     {% for mo in dg.models %}{{ mo.name }} ({{ mo.framework_name }}, {{ mo.status|replace("_", " ") }}){% if not loop.last %}; {% endif %}{% endfor %}
   </p>
   {% endif %}
@@ -15,15 +15,15 @@
   <p class="bad">This diagram has no drawable content.</p>
   {% endif %}
   {% if dg.elements %}
-  <h3>Elements and threats</h3>
+  <h3>{{ t("heading.elements_and_threats") }}</h3>
   <table class="data elements">
-    <thead><tr><th>Element</th><th>Type</th><th>Threats</th></tr></thead>
+    <thead><tr><th>{{ t("column.element") }}</th><th>{{ t("column.type") }}</th><th>{{ t("column.threats") }}</th></tr></thead>
     <tbody>
     {% for e in dg.elements %}
       <tr>
         <td><strong>{{ e.label }}</strong>{% if e.flow %}<div class="muted small">{{ e.flow }}</div>{% endif %}</td>
         <td>{{ e.type }}</td>
-        <td>{% for t in e.threats %}<span class="ref">{{ t.ref }}</span> {{ t.name }} {{ m.sev(t.severity) }}{% if not loop.last %}<br>{% endif %}{% else %}<span class="muted">none</span>{% endfor %}</td>
+        <td>{% for x in e.threats %}<span class="ref">{{ x.ref }}</span> {{ x.name }} {{ m.sev(x.severity) }}{% if not loop.last %}<br>{% endif %}{% else %}<span class="muted">{{ t("text.none") }}</span>{% endfor %}</td>
       </tr>
     {% endfor %}
     </tbody>

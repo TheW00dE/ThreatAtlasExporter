@@ -6,7 +6,7 @@
 </p>
 {% if d.findings %}
 <table class="data findings">
-  <thead><tr><th>Level</th><th>Rule</th><th>Subject</th><th>Finding</th></tr></thead>
+  <thead><tr>{% for c in ("level", "rule", "subject", "finding") %}<th>{{ t("column." ~ c) }}</th>{% endfor %}</tr></thead>
   <tbody>
   {% for f in d.findings %}
     <tr>

@@ -26,6 +26,8 @@ from tae.report.definition import (
     AppendixCatalogSection,
     CoverSection,
     DiagramSection,
+    DocumentControlSection,
+    DocumentInfo,
     ExecutiveSummarySection,
     MitigationTableSection,
     OnFailure,
@@ -48,6 +50,7 @@ from tae.report.query import (
     group_threats,
     sort_threats,
 )
+from tae.report.theme import DEFAULT_FOOTER, DEFAULT_HEADER, Theme, ThemeError, css_string, theme_css
 from tae.risk import DEFAULT_BANDS, RiskScale, load_risk_scales
 from tae.snapshot import Snapshot, build_view
 from tae.snapshot.view import ACTIVE_MITIGATION_STATUSES, ProductView
@@ -55,36 +58,6 @@ from tae.validate import ValidationConfig, ValidationResult, run
 from tae.validate.findings import Level
 
 TEMPLATES = resources.files("tae.report") / "templates"
-
-DEFAULT_TITLES = {
-    "toc": "Contents",
-    "executive_summary": "Executive summary",
-    "product_info": "Product information",
-    "diagram": "Data flow diagrams",
-    "risk_matrix": "Risk matrix",
-    "risk_scale": "Risk scale",
-    "threat_table": "Threats",
-    "mitigation_table": "Mitigations",
-    "accepted_risks": "Accepted risks",
-    "validation_findings": "Validation findings",
-    "appendix_catalog": "Appendix: threat and mitigation catalogue",
-    "text": "",
-}
-
-PRODUCT_FIELD_LABELS = {
-    "name": "Name",
-    "description": "Description",
-    "status": "Lifecycle stage",
-    "business_area": "Business area",
-    "owner_name": "Owner",
-    "owner_email": "Owner email",
-    "reviewer": "Reviewer",
-    "contributors": "Contributors",
-    "repository_url": "Repository",
-    "confluence_url": "Documentation",
-    "application_url": "Application URL",
-    "jira_project_key": "Jira project",
-}
 
 
 class ReportBlocked(Exception):
@@ -175,13 +148,6 @@ def data_uri(content: bytes | str, mime: str) -> str:
     return f"data:{mime};base64,{base64.b64encode(raw).decode()}"
 
 
-def css_string(value: str) -> str:
-    """Quote a value for use as a CSS string literal."""
-    cleaned = re.sub(r"[\x00-\x1f\x7f]", " ", value)
-    escaped = cleaned.replace("\\", "\\\\").replace('"', '\\"').replace("<", "\\3C ").replace(">", "\\3E ")
-    return f'"{escaped}"'
-
-
 def _fmt_date(value: Any) -> str:
     if value is None:
         return "—"
@@ -224,6 +190,7 @@ def render_user_string(template: str | None, **ctx: Any) -> str:
 # Logos are embedded in the PDF, so a definition must not be able to smuggle any other
 # file in: the content has to really be one of these image formats.
 LOGO_MAX_BYTES = 2 * 1024 * 1024
+IMAGE_MAX_BYTES = 4 * 1024 * 1024
 _IMAGE_SIGNATURES = (
     (b"\x89PNG\r\n\x1a\n", "image/png"),
     (b"\xff\xd8\xff", "image/jpeg"),
@@ -232,10 +199,10 @@ _IMAGE_SIGNATURES = (
 )
 
 
-def load_logo(path: Path) -> tuple[bytes, str]:
+def load_logo(path: Path, max_bytes: int = LOGO_MAX_BYTES) -> tuple[bytes, str]:
     """Read a logo and return (content, MIME type), refusing anything but real images."""
-    if path.stat().st_size > LOGO_MAX_BYTES:
-        raise ReportDefinitionError(f"Logo is larger than {LOGO_MAX_BYTES // (1024 * 1024)} MB: {path}")
+    if path.stat().st_size > max_bytes:
+        raise ReportDefinitionError(f"Image is larger than {max_bytes // (1024 * 1024)} MB: {path}")
     data = path.read_bytes()
     for signature, mime in _IMAGE_SIGNATURES:
         if data.startswith(signature):
@@ -247,6 +214,101 @@ def load_logo(path: Path) -> tuple[bytes, str]:
         if "<svg" in head:
             return data, "image/svg+xml"
     raise ReportDefinitionError(f"Logo must be a PNG, JPEG, GIF, WebP or SVG image: {path}")
+
+
+# ── theme ──────────────────────────────────────────────────────────────────────────
+
+EXTRA_CSS_MAX = 200_000
+
+
+def load_theme(definition: ReportDefinition, override: Path | None = None) -> Theme:
+    """The theme for a report: ``override``, else the definition's ``theme:``, else the default."""
+    if override is not None:
+        theme = Theme.load(override)
+    elif isinstance(definition.theme, str):
+        path = definition.resolve(definition.theme)
+        if not path.is_file():
+            raise ThemeError(f"Theme not found: {path}")
+        theme = Theme.load(path)
+    elif isinstance(definition.theme, dict):
+        theme = Theme.from_data(definition.theme, definition.base_dir, "inline theme")
+    else:
+        theme = Theme.from_data({}, definition.base_dir)
+    if "page_size" in definition.model_fields_set:  # an explicit definition setting wins
+        theme.page = theme.page.model_copy(update={"size": definition.page_size})
+    return theme
+
+
+@dataclass
+class EffectiveBranding:
+    """Branding after merging the theme with the definition (definition wins)."""
+
+    organisation: str | None
+    classification: str | None
+    footer: str | None
+    logo: Path | None
+    primary_color: str
+    accent_color: str
+
+    @property
+    def footer_line(self) -> str:
+        return " · ".join(x for x in (self.organisation, self.footer) if x)
+
+
+def effective_branding(definition: ReportDefinition, theme: Theme) -> EffectiveBranding:
+    db, tb = definition.branding, theme.branding
+    explicit = db.model_fields_set
+
+    def pick(name: str) -> str | None:
+        value: str | None = getattr(db, name) if name in explicit else getattr(tb, name)
+        return value
+
+    if "logo" in explicit:
+        logo = definition.resolve(db.logo) if db.logo else None
+    else:
+        logo = theme.resolve(tb.logo) if tb.logo else None
+    return EffectiveBranding(
+        organisation=pick("organisation"),
+        classification=pick("classification"),
+        footer=pick("footer"),
+        logo=logo,
+        primary_color=db.primary_color if "primary_color" in explicit else theme.colors.primary,
+        accent_color=db.accent_color if "accent_color" in explicit else theme.colors.accent,
+    )
+
+
+def render_slots(theme: Theme, ctx: dict[str, Any]) -> dict[str, str]:
+    """Header/footer slot texts with placeholders filled in, keyed by margin box."""
+    out: dict[str, str] = {}
+    for where, slots, defaults in (
+        ("top", theme.header, DEFAULT_HEADER),
+        ("bottom", theme.footer, DEFAULT_FOOTER),
+    ):
+        for pos in ("left", "center", "right"):
+            text = getattr(slots, pos)
+            if text is None:
+                text = defaults[pos]
+            out[f"{where}-{pos}"] = render_user_string(text, **ctx).strip()
+    return out
+
+
+def cover_image_css(theme: Theme) -> str:
+    if theme.cover.layout != "image":
+        return ""
+    if not theme.cover.background_image:
+        raise ThemeError("Cover layout 'image' needs cover.background_image")
+    path = theme.resolve(theme.cover.background_image)
+    if not path.is_file():
+        raise ThemeError(f"Cover image not found: {path}")
+    uri = data_uri(*load_logo(path, max_bytes=IMAGE_MAX_BYTES))
+    return f'.cover-layout-image {{ background-image: url("{uri}"); }}'
+
+
+def extra_css(theme: Theme) -> str:
+    css = theme.extra_css or ""
+    if len(css) > EXTRA_CSS_MAX:
+        raise ThemeError(f"extra_css is longer than {EXTRA_CSS_MAX} characters")
+    return css.replace("</", "<\\/")
 
 
 # ── section builders ────────────────────────────────────────────────────────────────
@@ -261,7 +323,15 @@ class Builder:
         validation: ValidationResult,
         validation_failed: bool,
         as_of: date,
+        theme: Theme | None = None,
+        branding: EffectiveBranding | None = None,
     ) -> None:
+        self.theme = theme or Theme()
+        self.branding = branding or effective_branding(definition, self.theme)
+        self.t = self.theme.label
+        sev = self.theme.colors.severity
+        levels = ("critical", "high", "medium", "low")
+        self.colors: dict[str | None, str] = {k: getattr(sev, k) for k in levels}
         self.view = view
         self.scoped = scoped
         self.d = definition
@@ -271,7 +341,38 @@ class Builder:
         self.threats = filter_threats(scoped.threats, definition.filters)
         threat_ids = {t.id for t in self.threats}
         self.mitigations = [m for m in scoped.mitigations if m.threat is None or m.threat.id in threat_ids]
-        self.user_ctx = {"product": view.product, "meta": view.snapshot.meta}
+        b = self.branding
+        self.user_ctx = {
+            "product": view.product,
+            "meta": view.snapshot.meta,
+            "organisation": b.organisation or "",
+            "classification": b.classification or "",
+            "footer": b.footer_line,
+            "document": definition.document or DocumentInfo(),
+            "report_date": as_of.isoformat(),
+        }
+        self.user_ctx["document"] = self._filled_document(definition.document or DocumentInfo())
+
+    def _filled_document(self, doc: DocumentInfo) -> DocumentInfo:
+        """Document control data with its own placeholders ({{ product.name }} etc.) filled in."""
+        ctx = {**self.user_ctx, "document": doc}
+
+        def fill_all(item: Any) -> Any:
+            return item.model_copy(
+                update={
+                    k: render_user_string(v, **ctx)
+                    for k, v in item.model_dump().items()
+                    if isinstance(v, str)
+                }
+            )
+
+        filled: DocumentInfo = fill_all(doc).model_copy(
+            update={
+                "revisions": [fill_all(r) for r in doc.revisions],
+                "approvals": [fill_all(a) for a in doc.approvals],
+            }
+        )
+        return filled
 
     # Each builder returns the template data for one section.
 
@@ -279,23 +380,33 @@ class Builder:
         p = self.view.product
         meta = self.view.snapshot.meta
         logo = None
-        if self.d.branding.logo:
-            path = self.d.resolve(self.d.branding.logo)
-            if not path.is_file():
-                raise ReportDefinitionError(f"Logo not found: {path}")
-            logo = data_uri(*load_logo(path))
-        return {
-            "logo": logo,
-            "facts": [
-                ("Product", p.name),
-                ("Lifecycle stage", p.status or "—"),
-                ("Owner", p.owner_name or "—"),
-                ("Reviewer", p.reviewer or "—"),
-                ("Report date", self.as_of.isoformat()),
-                ("Data pulled", meta.pulled_at.strftime("%Y-%m-%d %H:%M UTC")),
-                ("Source", meta.source_url or "—"),
-            ],
-        }
+        if self.branding.logo is not None:
+            if not self.branding.logo.is_file():
+                raise ReportDefinitionError(f"Logo not found: {self.branding.logo}")
+            logo = data_uri(*load_logo(self.branding.logo))
+        t = self.t
+        if self.theme.cover.facts is not None:
+            facts = [
+                (
+                    render_user_string(label, **self.user_ctx),
+                    render_user_string(value, **self.user_ctx) or "—",
+                )
+                for label, value in self.theme.cover.facts
+            ]
+        else:
+            facts = [
+                (t("field.product"), p.name),
+                (t("product.status"), p.status or "—"),
+                (t("product.owner_name"), p.owner_name or "—"),
+                (t("product.reviewer"), p.reviewer or "—"),
+                (t("field.report_date"), self.as_of.isoformat()),
+                (t("field.data_pulled"), meta.pulled_at.strftime("%Y-%m-%d %H:%M UTC")),
+                (t("field.source"), meta.source_url or "—"),
+            ]
+        return {"logo": logo, "facts": facts}
+
+    def document_control(self, s: DocumentControlSection) -> dict[str, Any]:
+        return {"document": self.user_ctx["document"]}
 
     def toc(self, s: TocSection) -> dict[str, Any]:
         return {}  # filled in after all sections are known
@@ -348,7 +459,10 @@ class Builder:
                     f"{len(active_mits)} implemented or verified",
                 ),
             ],
-            "severity_chart": data_uri(charts.severity_bars(sev_counts), "image/svg+xml"),
+            "severity_chart": data_uri(
+                charts.severity_bars(sev_counts, colors=self.colors, labels=self._severity_labels()),
+                "image/svg+xml",
+            ),
             "statuses": [(st, statuses.get(st, 0)) for st in ("identified", "accepted", "mitigated")],
             "mitigation_statuses": [
                 (st, mit_statuses.get(st, 0)) for st in ("proposed", "implemented", "verified")
@@ -357,6 +471,12 @@ class Builder:
             "validation": {"failed": self.validation_failed, **counts},
             "filters": self._describe_filters(),
         }
+
+    def _severity_labels(self) -> dict[str, str]:
+        labels = {
+            s: self.t(f"severity.{s}").capitalize() for s in ("critical", "high", "medium", "low", "unscored")
+        }
+        return {**labels, "open": self.t("text.open")}
 
     def _describe_filters(self) -> list[str]:
         f, sc = self.d.filters, self.d.scope
@@ -380,7 +500,7 @@ class Builder:
         rows = []
         for name in s.fields:
             value = getattr(p, name, None)
-            rows.append((PRODUCT_FIELD_LABELS[name], value if value not in (None, "") else "—"))
+            rows.append((self.t(f"product.{name}"), value if value not in (None, "") else "—"))
         frameworks = sorted({m.framework_name for d in self.scoped.diagrams for m in d.models})
         return {"rows": rows, "frameworks": frameworks, "diagram_count": len(self.scoped.diagrams)}
 
@@ -388,7 +508,7 @@ class Builder:
         visible = {t.id for t in self.threats}
         diagrams = []
         for d in self.scoped.diagrams:
-            svg = render_svg(d, annotate_threats=s.annotate_threats, visible=visible)
+            svg = render_svg(d, annotate_threats=s.annotate_threats, visible=visible, colors=self.colors)
             elements = []
             for e in sorted(d.elements.values(), key=lambda e: (e.kind, e.label.casefold())):
                 if not s.element_table:
@@ -419,7 +539,10 @@ class Builder:
                     "description": _paragraphs(d.diagram.description),
                 }
             )
-        return {"diagrams": diagrams, "legend": data_uri(legend_svg(), "image/svg+xml") if s.legend else None}
+        return {
+            "diagrams": diagrams,
+            "legend": data_uri(legend_svg(self.colors), "image/svg+xml") if s.legend else None,
+        }
 
     @staticmethod
     def _is_wide(svg: str | None) -> bool:
@@ -619,6 +742,7 @@ def build_report(
     as_of: date | None = None,
     on_failure: OnFailure | None = None,
     rules: Path | None = None,
+    theme: Path | None = None,
 ) -> ReportOutput:
     as_of = as_of or date.today()
     mode = on_failure or definition.validation.on_failure
@@ -639,18 +763,24 @@ def build_report(
     elif failed and not any(isinstance(s, ValidationFindingsSection) for s in sections):
         sections.append(ValidationFindingsSection(type="validation_findings"))
 
-    builder = Builder(view, scoped, definition, validation, failed, as_of)
+    the_theme = load_theme(definition, theme)
+    branding = effective_branding(definition, the_theme)
+    builder = Builder(view, scoped, definition, validation, failed, as_of, the_theme, branding)
+
+    def default_title(kind: str) -> str:
+        return "" if kind in ("text", "cover") else the_theme.label(f"section.{kind}")
+
     rendered: list[RenderedSection] = []
     number = 0
     for i, s in enumerate(sections):
         if isinstance(s, CoverSection | TocSection):
-            title, num = s.title or DEFAULT_TITLES.get(s.type, ""), None
+            title, num = s.title or default_title(s.type), None
         else:
-            number += 1
-            title = render_user_string(s.title, **builder.user_ctx) if s.title else DEFAULT_TITLES[s.type]
-            num = str(number) if title else None
-            if not title:
-                number -= 1
+            title = render_user_string(s.title, **builder.user_ctx) if s.title else default_title(s.type)
+            num = None
+            if title:
+                number += 1
+                num = str(number) if the_theme.numbering else None
         data = getattr(builder, s.type)(s)
         rendered.append(RenderedSection(s.type, f"s{i}-{s.type}", title, num, s.page_break, data))
     for r in rendered:
@@ -676,21 +806,29 @@ def build_report(
     env.filters["date"] = _fmt_date
     env.filters["css_string"] = lambda v: Markup(css_string(str(v)))  # noqa: S704  (value is CSS-escaped)
     env.filters["paragraphs"] = _paragraphs
+    env.globals["t"] = the_theme.label
 
     title = render_user_string(definition.title, **builder.user_ctx)
     subtitle = render_user_string(definition.subtitle, **builder.user_ctx)
+    banner = failed and mode is OnFailure.annotate
+    slots = render_slots(the_theme, {**builder.user_ctx, "title": title, "subtitle": subtitle})
+    css = theme_css(the_theme, branding.primary_color, branding.accent_color, slots, banner)
+    css = "\n".join(x for x in (css, cover_image_css(the_theme)) if x).replace("</", "<\\/")
     template = env.get_template("report.html.j2")
     try:
         html = _render(
             template,
             definition=definition,
-            branding=definition.branding,
+            branding=branding,
+            theme=the_theme,
+            theme_css=Markup(css),  # noqa: S704  (built from validated and CSS-escaped values)
+            extra_css=Markup(extra_css(the_theme)),  # noqa: S704  (theme author's own stylesheet)
             title=title,
             subtitle=subtitle,
             product=view.product,
             meta=snapshot.meta,
             sections=rendered,
-            banner=failed and mode is OnFailure.annotate,
+            banner=banner,
             validation=validation,
             as_of=as_of,
             generated_at=datetime.now(UTC),

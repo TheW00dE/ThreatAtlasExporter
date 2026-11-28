@@ -9,15 +9,34 @@
 
 title: "Threat Model Report"
 subtitle: "{{ product.name }}"
-page_size: A4                     # A4 | Letter
 
+# The look of the report: fonts, colours, page size and margins, header/footer,
+# cover layout, wording. A theme file can be shared by many definitions; start one
+# with `tae report init --theme`. See docs/theming.md.
+# theme: ./theme.yaml
+
+# Values set here override the theme's.
 branding:
   organisation: "Example Corp"
   # logo: ./logo.png              # PNG, JPG or SVG
-  primary_color: "#1f3a5f"
-  accent_color: "#2f80ed"
+  # primary_color: "#1f3a5f"
+  # accent_color: "#2f80ed"
   classification: "CONFIDENTIAL"  # printed at the top of every page
   # footer: "Security Architecture"
+# page_size: A4                   # A4 | Letter (overrides the theme's page size)
+
+# Document control: shown by the document_control section; also available to the
+# header, footer and cover as {{ document.id }}, {{ document.version }} etc.
+# document:
+#   id: "TM-{{ product.jira_project_key }}-001"
+#   version: "1.0"
+#   status: Draft
+#   owner: "{{ product.owner_name }}"
+#   revisions:
+#     - {version: "1.0", date: "2026-01-15", author: "A. Analyst", changes: "First issue"}
+#   approvals:
+#     - {role: "Product owner", name: "{{ product.owner_name }}"}
+#     - {role: "Security architect"}
 
 # Which parts of the product the report covers.
 scope:

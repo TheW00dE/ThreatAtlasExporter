@@ -1,5 +1,6 @@
 {#- Main report template. Override any file in this directory by putting a file with
-    the same name in the definition's `template:` directory. -#}
+    the same name in the definition's `template:` directory. Colours, fonts, page size,
+    header/footer and wording come from the report theme (docs/theming.md). -#}
 {% import "macros.html.j2" as m %}
 <!doctype html>
 <html lang="{{ definition.language }}">
@@ -7,36 +8,22 @@
 <meta charset="utf-8">
 <title>{{ title }} — {{ product.name }}</title>
 <meta name="generator" content="ThreatAtlasExporter {{ tool_version }}">
-<link rel="stylesheet" href="styles/default.css">
 <style>
-:root { --primary: {{ branding.primary_color }}; --accent: {{ branding.accent_color }}; }
-@page { size: {{ definition.page_size }}; }
-@page landscape { size: {{ definition.page_size }} landscape; }
-{% if branding.classification %}
-@page { @top-center { content: {{ branding.classification|css_string }}; } }
-@page landscape { @top-center { content: {{ branding.classification|css_string }}; } }
-{% endif %}
-{% if banner %}
-@page { @top-right { content: "VALIDATION FAILED"; color: #b91c1c; font-weight: bold; } }
-@page landscape { @top-right { content: "VALIDATION FAILED"; color: #b91c1c; font-weight: bold; } }
-{% endif %}
+{{ theme_css }}
 </style>
+<link rel="stylesheet" href="styles/default.css">
+{% if extra_css %}<style>
+{{ extra_css }}
+</style>{% endif %}
 </head>
 <body>
-{% macro running() %}
-<div class="running-title">{{ product.name }} — {{ title }}</div>
-<div class="running-footer">{{ branding.organisation or "" }}{% if branding.organisation and branding.footer %} · {% endif %}{{ branding.footer or "" }}</div>
-{% endmacro %}
-{#- The running strings must sit on the first page; on the cover when there is one. -#}
-{% set has_cover = sections and sections[0].type == "cover" %}
-{% if not has_cover %}{{ running() }}{% endif %}
+{% if theme.watermark %}<div class="watermark">{{ theme.watermark.text }}</div>{% endif %}
 {% for s in sections %}
-<section id="{{ s.anchor }}" class="section section-{{ s.type }}{% if s.page_break %} page-break{% endif %}">
+<section id="{{ s.anchor }}" class="section section-{{ s.type }}{% if s.page_break %} page-break{% endif %}{% if s.type == 'cover' %} cover-layout-{{ theme.cover.layout }}{% endif %}">
 {% if s.type != "cover" and s.title %}
   <h1>{% if s.number %}<span class="num">{{ s.number }}</span>{% endif %}{{ s.title }}</h1>
 {% endif %}
 {% include "sections/" ~ s.type ~ ".html.j2" %}
-{% if loop.first and has_cover %}{{ running() }}{% endif %}
 </section>
 {% endfor %}
 </body>

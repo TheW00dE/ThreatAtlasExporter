@@ -30,8 +30,10 @@ To get schema-based autocompletion in VS Code, add this to `.vscode/settings.jso
 |---|---|---|
 | `title` | `Threat Model Report` | Cover and header title. May use `{{ product.name }}` etc. |
 | `subtitle` | `{{ product.name }}` | Cover subtitle |
-| `page_size` | `A4` | `A4` or `Letter`. Wide diagrams get landscape pages automatically. |
-| `branding` | | See below |
+| `theme` | built-in | Look of the report: a theme file or an inline mapping ([theming.md](theming.md)) |
+| `page_size` | theme's | `A4` or `Letter`; overrides the theme. Wide diagrams get landscape pages automatically. |
+| `branding` | theme's | See below; each value set here overrides the theme's |
+| `document` | none | Document control data, see below |
 | `scope` | everything | Which diagrams, frameworks and threat-model statuses are covered |
 | `filters` | none | Report-wide threat filters |
 | `validation` | | Rules file, failure handling |
@@ -43,6 +45,8 @@ Placeholders use a sandboxed template engine. Missing values print as nothing (u
 `{{ product.owner_name or "unassigned" }}` for a fallback), and dates print without
 seconds; `{{ meta.pulled_at|date }}` gives just the date. Available values: `product.*` (every
 product field) and `meta.*` (`source_url`, `pulled_at`, `pulled_by`, `tool_version`).
+Header and footer text, cover facts and document control fields can also use
+`organisation`, `classification`, `footer`, `document.*` and `report_date`.
 
 ### `branding`
 
@@ -54,6 +58,27 @@ branding:
   accent_color: "#2f80ed"
   classification: "CONFIDENTIAL" # top of every page, and on the cover
   footer: "Security Architecture"
+```
+
+Usually these live in a shared theme; values set here win over the theme's.
+
+### `document`
+
+Document control data, shown by the `document_control` section and available to the
+theme's header, footer and cover as `{{ document.id }}`, `{{ document.version }}` etc.
+Every text may use placeholders.
+
+```yaml
+document:
+  id: "TM-{{ product.jira_project_key }}-001"
+  version: "1.2"
+  status: Draft
+  owner: "{{ product.owner_name }}"
+  revisions:
+    - {version: "1.0", date: "2026-09-01", author: "A. Analyst", changes: "First issue"}
+  approvals:                     # sign-off table with an empty signature column
+    - {role: "Product owner", name: "{{ product.owner_name }}"}
+    - {role: "Security architect"}
 ```
 
 ### `scope`
@@ -113,6 +138,7 @@ automatically and listed in the table of contents and PDF bookmarks.
 |---|---|---|
 | `cover` | | Title, classification, logo, key facts, validation banner, snapshot fingerprint |
 | `toc` | | Contents with page numbers |
+| `document_control` | | Document ID, version, status, owner, revision history and sign-off table (from `document:`) |
 | `text` | `body` | Free text; paragraphs separated by blank lines; placeholders allowed |
 | `executive_summary` | | KPIs, threats by severity chart, status breakdowns, top open risks, validation verdict |
 | `product_info` | `fields` | Product metadata table |
@@ -171,7 +197,9 @@ diagrams) is planned for phase 5.
 
 ## Custom templates
 
-The report is HTML and CSS rendered by WeasyPrint. To change the layout, point
+Most corporate layouts need only a theme ([theming.md](theming.md)): fonts, colours,
+page size, margins, header and footer, cover layout and wording. For structural changes
+the report is HTML and CSS rendered by WeasyPrint or a browser. To change the layout, point
 `template:` at a directory containing only the files you want to override; everything
 else comes from the built-in templates:
 

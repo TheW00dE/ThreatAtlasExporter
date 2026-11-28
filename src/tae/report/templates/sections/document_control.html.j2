@@ -1,0 +1,27 @@
+{% set doc = s.data.document %}
+<table class="facts">
+  {% if doc.id %}<tr><th>{{ t("field.document_id") }}</th><td>{{ doc.id }}</td></tr>{% endif %}
+  {% if doc.version %}<tr><th>{{ t("field.version") }}</th><td>{{ doc.version }}</td></tr>{% endif %}
+  {% if doc.status %}<tr><th>{{ t("field.document_status") }}</th><td>{{ doc.status }}</td></tr>{% endif %}
+  {% if doc.owner %}<tr><th>{{ t("field.document_owner") }}</th><td>{{ doc.owner }}</td></tr>{% endif %}
+  {% if branding.classification %}<tr><th>{{ t("field.classification") }}</th><td>{{ branding.classification }}</td></tr>{% endif %}
+  <tr><th>{{ t("field.report_date") }}</th><td>{{ as_of }}</td></tr>
+</table>
+{% if doc.revisions %}
+<h2>{{ t("heading.revision_history") }}</h2>
+<table class="data">
+  <thead><tr><th>{{ t("column.version") }}</th><th>{{ t("column.date") }}</th><th>{{ t("column.author") }}</th><th>{{ t("column.changes") }}</th></tr></thead>
+  <tbody>
+  {% for r in doc.revisions %}<tr><td class="nowrap">{{ r.version }}</td><td class="nowrap">{{ m.opt(r.date) }}</td><td>{{ m.opt(r.author) }}</td><td>{{ m.opt(r.changes) }}</td></tr>{% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% if doc.approvals %}
+<h2>{{ t("heading.approvals") }}</h2>
+<table class="data signoff">
+  <thead><tr><th>{{ t("column.role") }}</th><th>{{ t("column.name") }}</th><th>{{ t("column.date") }}</th><th>{{ t("column.signature") }}</th></tr></thead>
+  <tbody>
+  {% for a in doc.approvals %}<tr><td>{{ a.role }}</td><td>{{ a.name or "" }}</td><td>{{ a.date or "" }}</td><td></td></tr>{% endfor %}
+  </tbody>
+</table>
+{% endif %}
