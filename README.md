@@ -13,6 +13,8 @@ See [docs/PLAN.md](docs/PLAN.md) for the design and roadmap.
 > **Status:** pull, validate and PDF reports work, tested against fixtures modelled on
 > ThreatAtlas v0.9.x; not yet tested against a live instance. Write commands come in later phases.
 
+Full manual (all functions, short form): [docs/MANUAL.md](docs/MANUAL.md).
+
 ## Quick start
 
 ```sh
@@ -113,7 +115,8 @@ tae validate    [SNAPSHOT | --product ID|NAME] [--rules FILE] [--risk-scale FILE
 tae rules       [--rules FILE]
 tae report      build [SNAPSHOT | --product ID|NAME] [-d DEFINITION] [-f PDF] [--html FILE]
                       [--rules FILE] [--on-failure block|annotate|warn|ignore] [--findings-file FILE]
-                init [FILE] | check FILE | schema [-f FILE]
+                      [--theme FILE]
+                init [FILE] [--theme] | check FILE | schema [--theme] [-f FILE] | labels [--theme FILE]
 tae auth        login | status | logout
 tae config      show | path
 tae products    list | get ID | security-status ID
