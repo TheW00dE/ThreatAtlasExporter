@@ -9,6 +9,7 @@ threats sit on each element, coloured by the most severe one.
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 from xml.sax.saxutils import escape
@@ -175,12 +176,21 @@ def _text_block(lines: list[str], cx: float, cy: float, size: float, color: str 
     return "".join(out)
 
 
-def _badge(x: float, y: float, count: int, severity: str | None) -> str:
-    color = SEVERITY_COLORS.get(severity, SEVERITY_COLORS[None])
+def _text_on(color: str) -> str:
+    from tae.report.theme import readable_text
+
+    return readable_text(color)
+
+
+def _badge(
+    x: float, y: float, count: int, severity: str | None, colors: Mapping[str | None, str] | None = None
+) -> str:
+    palette = {**SEVERITY_COLORS, **(colors or {})}
+    color = palette.get(severity, palette[None])
     return (
         f'<circle cx="{x:.1f}" cy="{y:.1f}" r="9" fill="{color}" stroke="#ffffff" stroke-width="1.5"/>'
         f'<text x="{x:.1f}" y="{y:.1f}" dy="0.35em" font-size="9" font-weight="bold" font-family="{FONT}" '
-        f'fill="#ffffff" text-anchor="middle">{count}</text>'
+        f'fill="{_text_on(color)}" text-anchor="middle">{count}</text>'
     )
 
 
@@ -193,7 +203,11 @@ def _worst(view: DiagramView, element_id: str, visible: set[int] | None) -> tupl
 
 
 def render_svg(
-    view: DiagramView, *, annotate_threats: bool = True, visible: set[int] | None = None
+    view: DiagramView,
+    *,
+    annotate_threats: bool = True,
+    visible: set[int] | None = None,
+    colors: Mapping[str | None, str] | None = None,
 ) -> str | None:
     """Return SVG markup, or ``None`` if the diagram has no nodes.
 
@@ -300,7 +314,7 @@ def render_svg(
             count, sev = _worst(view, edge.id, visible)
             if count:
                 bx = lx + (len(label[:28]) * 2.7 + 14 if label else 12)
-                parts.append(_badge(bx, ly - 8, count, sev))
+                parts.append(_badge(bx, ly - 8, count, sev, colors))
 
     # Nodes.
     for e in nodes.values():
@@ -340,13 +354,13 @@ def render_svg(
         if annotate_threats:
             count, sev = _worst(view, e.id, visible)
             if count:
-                parts.append(_badge(badge_at[0], badge_at[1], count, sev))
+                parts.append(_badge(badge_at[0], badge_at[1], count, sev, colors))
 
     parts.append("</svg>")
     return "".join(parts)
 
 
-def legend_svg() -> str:
+def legend_svg(colors: Mapping[str | None, str] | None = None) -> str:
     """A small key explaining the shapes and badge colours."""
     items = [
         f'<circle cx="14" cy="14" r="9" fill="#eff6ff" stroke="{COLORS["process"]}" stroke-width="2"/>'
@@ -363,7 +377,7 @@ def legend_svg() -> str:
     ]
     x = 430.0
     for sev in ("critical", "high", "medium", "low"):
-        items.append(_badge(x, 14, 1, sev).replace(">1<", "><"))
+        items.append(_badge(x, 14, 1, sev, colors).replace(">1<", "><"))
         items.append(f'<text x="{x + 13}" y="14" dy="0.35em" font-size="9" font-family="{FONT}">{sev}</text>')
         x += 13 + len(sev) * 5.5 + 14
     return (

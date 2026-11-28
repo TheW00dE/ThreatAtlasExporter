@@ -1,17 +1,17 @@
 {% if s.data.threats %}
-<h2>Threats</h2>
+<h2>{{ t("heading.threats") }}</h2>
 {% for th, framework, refs in s.data.threats %}
 <div class="catalog-entry">
-  <div><strong>{{ th.name }}</strong> <span class="muted">{{ framework or "" }}{% if th.category %} · {{ th.category }}{% endif %}{% if th.is_custom %} · custom{% endif %}</span> <span class="refs">{{ refs|join(", ") }}</span></div>
+  <div><strong>{{ th.name }}</strong> <span class="muted">{{ framework or "" }}{% if th.category %} · {{ th.category }}{% endif %}{% if th.is_custom %} · {{ t("text.custom") }}{% endif %}</span> <span class="refs">{{ refs|join(", ") }}</span></div>
   {% if th.description %}<p>{{ th.description }}</p>{% endif %}
 </div>
 {% endfor %}
 {% endif %}
 {% if s.data.mitigations %}
-<h2>Mitigations</h2>
+<h2>{{ t("heading.mitigations") }}</h2>
 {% for mi, refs in s.data.mitigations %}
 <div class="catalog-entry">
-  <div><strong>{{ mi.name }}</strong> <span class="muted">{% if mi.category %}{{ mi.category }}{% endif %}{% if mi.is_custom %} · custom{% endif %}</span> <span class="refs">{{ refs|join(", ") }}</span></div>
+  <div><strong>{{ mi.name }}</strong> <span class="muted">{% if mi.category %}{{ mi.category }}{% endif %}{% if mi.is_custom %} · {{ t("text.custom") }}{% endif %}</span> <span class="refs">{{ refs|join(", ") }}</span></div>
   {% if mi.description %}<p>{{ mi.description }}</p>{% endif %}
 </div>
 {% endfor %}

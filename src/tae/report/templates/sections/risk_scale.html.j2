@@ -1,6 +1,6 @@
 {% macro levels(title, items) %}
 <table class="data scale">
-  <thead><tr><th class="col-ref">Level</th><th>{{ title }}</th><th>Meaning</th></tr></thead>
+  <thead><tr><th class="col-ref">{{ t("column.level") }}</th><th>{{ title }}</th><th>{{ t("column.meaning") }}</th></tr></thead>
   <tbody>
   {% for n, lvl in items %}<tr><td class="num">{{ n }}</td><td><strong>{{ lvl.label }}</strong></td><td>{{ m.opt(lvl.description) }}</td></tr>{% endfor %}
   </tbody>
@@ -18,9 +18,9 @@
 {% for sc in s.data.scales %}
 <h2>{{ sc.name or "Custom risk scale" }}</h2>
 {% if sc.frameworks %}<p class="meta">Applies to threats from: {{ sc.frameworks|join(", ") }}</p>{% endif %}
-{{ levels("Likelihood", sc.likelihood.items()) }}
-{{ levels("Impact", sc.impact.items()) }}
-<h3>Severity bands</h3>
+{{ levels(t("axis.likelihood"), sc.likelihood.items()) }}
+{{ levels(t("axis.impact"), sc.impact.items()) }}
+<h3>{{ t("heading.severity_bands") }}</h3>
 {{ band_table(sc.bands) }}
 {% endfor %}
 {% if s.data.default_bands %}

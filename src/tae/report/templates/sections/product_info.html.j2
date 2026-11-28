@@ -2,6 +2,6 @@
 {% for label, value in s.data.rows %}
   <tr><th>{{ label }}</th><td>{% if value is string and value.startswith(("http://", "https://")) %}<span class="url">{{ value }}</span>{% else %}{{ value }}{% endif %}</td></tr>
 {% endfor %}
-  <tr><th>Diagrams in scope</th><td>{{ s.data.diagram_count }}</td></tr>
-  <tr><th>Frameworks applied</th><td>{{ s.data.frameworks|join(", ") or "—" }}</td></tr>
+  <tr><th>{{ t("field.diagrams_in_scope") }}</th><td>{{ s.data.diagram_count }}</td></tr>
+  <tr><th>{{ t("field.frameworks_applied") }}</th><td>{{ s.data.frameworks|join(", ") or "—" }}</td></tr>
 </table>

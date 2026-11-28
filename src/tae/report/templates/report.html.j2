@@ -1,5 +1,6 @@
 {#- Main report template. Override any file in this directory by putting a file with
-    the same name in the definition's `template:` directory. -#}
+    the same name in the definition's `template:` directory. Colours, fonts, page size,
+    header/footer and wording come from the report theme (docs/theming.md). -#}
 {% import "macros.html.j2" as m %}
 <!doctype html>
 <html lang="{{ definition.language }}">
@@ -7,29 +8,18 @@
 <meta charset="utf-8">
 <title>{{ title }} — {{ product.name }}</title>
 <meta name="generator" content="ThreatAtlasExporter {{ tool_version }}">
-<link rel="stylesheet" href="styles/default.css">
 <style>
-:root { --primary: {{ branding.primary_color }}; --accent: {{ branding.accent_color }}; }
-@page { size: {{ definition.page_size }}; }
-@page landscape { size: {{ definition.page_size }} landscape; }
-{#- Header and footer text is written into the page CSS directly (not via string-set),
-    which works the same in WeasyPrint and in Chromium/Edge. -#}
-{% set footer_text = (branding.organisation or "") ~ (" · " if branding.organisation and branding.footer else "") ~ (branding.footer or "") %}
-@page { @top-left { content: {{ (product.name ~ " — " ~ title)|css_string }}; } }
-{% if footer_text %}@page { @bottom-left { content: {{ footer_text|css_string }}; } }{% endif %}
-{% if branding.classification %}
-@page { @top-center { content: {{ branding.classification|css_string }}; } }
-@page landscape { @top-center { content: {{ branding.classification|css_string }}; } }
-{% endif %}
-{% if banner %}
-@page { @top-right { content: "VALIDATION FAILED"; color: #b91c1c; font-weight: bold; } }
-@page landscape { @top-right { content: "VALIDATION FAILED"; color: #b91c1c; font-weight: bold; } }
-{% endif %}
+{{ theme_css }}
 </style>
+<link rel="stylesheet" href="styles/default.css">
+{% if extra_css %}<style>
+{{ extra_css }}
+</style>{% endif %}
 </head>
 <body>
+{% if theme.watermark %}<div class="watermark">{{ theme.watermark.text }}</div>{% endif %}
 {% for s in sections %}
-<section id="{{ s.anchor }}" class="section section-{{ s.type }}{% if s.page_break %} page-break{% endif %}">
+<section id="{{ s.anchor }}" class="section section-{{ s.type }}{% if s.page_break %} page-break{% endif %}{% if s.type == 'cover' %} cover-layout-{{ theme.cover.layout }}{% endif %}">
 {% if s.type != "cover" and s.title %}
   <h1>{% if s.number %}<span class="num">{{ s.number }}</span>{% endif %}{{ s.title }}</h1>
 {% endif %}

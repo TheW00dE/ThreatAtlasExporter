@@ -4,7 +4,7 @@ A command-line tool for [OWASP ThreatAtlas](https://github.com/OWASP/www-project
 
 - **pulls** a product's diagrams, threat models, threats and mitigations into a snapshot file,
 - **validates** them against built-in and custom rules ([docs/validation-rules.md](docs/validation-rules.md)),
-- **renders** a PDF report per product from a configurable report definition ([docs/report-definition.md](docs/report-definition.md)),
+- **renders** a PDF report per product from a configurable report definition ([docs/report-definition.md](docs/report-definition.md)), styled by a YAML theme for your corporate layout ([docs/theming.md](docs/theming.md)),
 - **imports** custom frameworks (with your own risk scale) and complete product threat models
   from YAML, keeping ThreatAtlas in sync with the file ([docs/import.md](docs/import.md)).
 

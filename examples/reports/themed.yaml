@@ -1,0 +1,29 @@
+# A report styled by a shared theme, with document control.
+# Build: tae report build SNAPSHOT.json --definition examples/reports/themed.yaml
+title: "Threat Model Report"
+subtitle: "{{ product.name }}"
+theme: ../themes/example-corp.yaml
+
+document:
+  id: "TM-{{ product.jira_project_key or 'X' }}-001"
+  version: "1.0"
+  status: Draft
+  owner: "{{ product.owner_name }}"
+  revisions:
+    - {version: "1.0", date: "2026-11-28", author: "{{ product.owner_name }}", changes: "First issue"}
+  approvals:
+    - {role: "Product owner", name: "{{ product.owner_name }}"}
+    - {role: "Security architect"}
+
+sections:
+  - type: cover
+  - type: document_control
+  - type: toc
+  - type: executive_summary
+  - type: risk_matrix
+    page_break: false
+  - type: diagram
+  - type: threat_table
+  - type: mitigation_table
+  - type: accepted_risks
+  - type: validation_findings

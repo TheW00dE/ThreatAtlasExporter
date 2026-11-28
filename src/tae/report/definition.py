@@ -187,6 +187,11 @@ class RiskMatrixSection(_Section):
     page_break: bool = False
 
 
+class DocumentControlSection(_Section):
+    type: Literal["document_control"]
+    page_break: bool = True
+
+
 class RiskScaleSection(_Section):
     type: Literal["risk_scale"]
     page_break: bool = False
@@ -277,6 +282,7 @@ Section = Annotated[
     | DiagramSection
     | RiskMatrixSection
     | RiskScaleSection
+    | DocumentControlSection
     | ThreatTableSection
     | MitigationTableSection
     | AcceptedRisksSection
@@ -303,6 +309,30 @@ def default_sections() -> list[Any]:
     ]
 
 
+class Revision(Strict):
+    version: str
+    date: str | None = None
+    author: str | None = None
+    changes: str | None = None
+
+
+class Approval(Strict):
+    role: str
+    name: str | None = None
+    date: str | None = None
+
+
+class DocumentInfo(Strict):
+    """Document control data; text may use {{ product.name }}-style placeholders."""
+
+    id: str | None = None
+    version: str | None = None
+    status: str | None = None
+    owner: str | None = None
+    revisions: list[Revision] = Field(default_factory=list)
+    approvals: list[Approval] = Field(default_factory=list, description="Sign-off table rows.")
+
+
 class ReportDefinition(Strict):
     title: str = "Threat Model Report"
     subtitle: str | None = "{{ product.name }}"
@@ -315,6 +345,14 @@ class ReportDefinition(Strict):
     scope: Scope = Field(default_factory=Scope)
     filters: Filters = Field(default_factory=Filters)
     validation: ValidationSettings = Field(default_factory=ValidationSettings)
+    theme: str | dict[str, Any] | None = Field(
+        None,
+        description="Report theme: a theme file (relative to this file) or an inline theme mapping. "
+        "See docs/theming.md.",
+    )
+    document: DocumentInfo | None = Field(
+        None, description="Document control: ID, version, revisions, sign-off."
+    )
     risk_scales: list[str] = Field(
         default_factory=list,
         description="Framework or risk-scale files (relative to this file) whose custom risk scales "
