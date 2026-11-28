@@ -1,0 +1,68 @@
+# Reusable GitLab CI jobs for a product's threat model.
+#
+# Include from a product repository:
+#   include:
+#     - project: your-group/threatatlas-exporter
+#       file: examples/gitlab/threat-model.gitlab-ci.yml
+#   variables:
+#     TAE_PRODUCT: "Payments API"
+#
+# Validation runs automatically; the PDF report job only ever runs when started by hand.
+#
+# Required CI/CD variables (Settings → CI/CD → Variables):
+#   TAE_URL    ThreatAtlas base URL
+#   TAE_TOKEN  personal API token (masked, protected)
+# Optional: TAE_CA_BUNDLE (File variable) for an internal CA,
+#           TAE_REPORT_DEFINITION and TAE_RULES paths in the repository.
+
+variables:
+  TAE_IMAGE: "$CI_REGISTRY/your-group/threatatlas-exporter:latest"
+  TAE_REPORT_DEFINITION: ""
+  TAE_RULES: ""
+
+.tae:
+  image:
+    name: $TAE_IMAGE
+    entrypoint: [""]
+  before_script:
+    - tae pull --product "$TAE_PRODUCT" -f snapshot.json
+  artifacts:
+    when: always
+    expire_in: 90 days
+
+# Merge requests: show validation findings in the MR test and Code Quality widgets.
+threat-model:validate:
+  extends: .tae
+  stage: test
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  script:
+    - RULES_ARG=""; if [ -n "$TAE_RULES" ]; then RULES_ARG="--rules $TAE_RULES"; fi
+    - tae validate snapshot.json $RULES_ARG --format codequality -f gl-code-quality-report.json --fail-level never
+    - tae validate snapshot.json $RULES_ARG --format junit -f tae-validation.xml
+  artifacts:
+    paths: [snapshot.json]
+    reports:
+      junit: tae-validation.xml
+      codequality: gl-code-quality-report.json
+
+# PDF report: only built when someone starts this job by hand (the play button on the
+# pipeline, or a pipeline run from Build → Pipelines → Run pipeline). It never runs on
+# its own, and it doesn't block the pipeline while waiting. It pulls fresh data, so the
+# PDF reflects ThreatAtlas at the moment it is started.
+threat-model:report:
+  extends: .tae
+  stage: deploy
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
+    - if: $CI_COMMIT_BRANCH || $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: manual
+      allow_failure: true
+  script:
+    - DEF_ARG=""; if [ -n "$TAE_REPORT_DEFINITION" ]; then DEF_ARG="--definition $TAE_REPORT_DEFINITION"; fi
+    - RULES_ARG=""; if [ -n "$TAE_RULES" ]; then RULES_ARG="--rules $TAE_RULES"; fi
+    - tae report build snapshot.json $DEF_ARG $RULES_ARG -f threat-model.pdf --findings-file findings.json
+  artifacts:
+    paths: [threat-model.pdf, findings.json, snapshot.json]

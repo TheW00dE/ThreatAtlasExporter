@@ -1,0 +1,25 @@
+{% set d = s.data %}
+{% if not d.count %}<p class="muted">No mitigations in scope.</p>{% endif %}
+{% for g in d.groups %}
+  {% if g.title %}<h2>{{ g.title|capitalize }}</h2>{% endif %}
+  <table class="data">
+    <thead><tr>{% for c in d.columns %}<th class="col-{{ c }}">{{ t("column.addresses" if c == "threat" else "column." ~ c) }}</th>{% endfor %}</tr></thead>
+    <tbody>
+    {% for mi in g.items %}
+      <tr>
+      {% for c in d.columns %}
+        {% if c == "ref" %}<td class="ref">{{ mi.ref }}</td>
+        {% elif c == "mitigation" %}<td><strong>{{ mi.name }}</strong></td>
+        {% elif c == "category" %}<td>{{ m.opt(mi.category) }}</td>
+        {% elif c == "element" %}<td>{{ mi.element_label }}</td>
+        {% elif c == "diagram" %}<td>{{ mi.diagram.name }}</td>
+        {% elif c == "threat" %}<td>{% if mi.threat %}<span class="ref">{{ mi.threat.ref }}</span> {{ mi.threat.name }}{% else %}<span class="muted">{{ t("text.element_level") }}</span>{% endif %}</td>
+        {% elif c == "status" %}<td>{{ m.status(mi.status) }}</td>
+        {% elif c == "description" %}<td class="col-description">{{ m.opt(mi.description) }}</td>
+        {% endif %}
+      {% endfor %}
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+{% endfor %}

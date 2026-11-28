@@ -1,0 +1,72 @@
+# ThreatAtlasExporter report definition.
+#
+# Build:   tae report build SNAPSHOT.json --definition report.yaml
+# Check:   tae report check report.yaml
+# Schema:  tae report schema -f report.schema.json   (for editor autocompletion)
+#
+# Text values may use {{ product.name }}, {{ product.owner_name }}, {{ meta.pulled_at }} etc.
+# Relative paths are resolved against this file's directory.
+
+title: "Threat Model Report"
+subtitle: "{{ product.name }}"
+page_size: A4                     # A4 | Letter
+
+branding:
+  # organisation: "Your organisation"   # shown on the cover and in the footer
+  # logo: ./logo.png              # PNG, JPG or SVG
+  primary_color: "#1f3a5f"
+  accent_color: "#2f80ed"
+  classification: "CONFIDENTIAL"  # printed at the top of every page
+  # footer: "Security Architecture"
+
+# Which parts of the product the report covers.
+scope:
+  diagrams: all                   # or a list of diagram names/IDs
+  frameworks: []                  # e.g. [STRIDE]; empty = all
+  model_status: [in_progress, completed]
+
+# Report-wide threat filters (a threat table can override them).
+filters:
+  min_severity: null              # low | medium | high | critical
+  include_unscored: true
+  statuses: null                  # e.g. [identified, accepted]
+  categories: null
+
+validation:
+  # rules: ./validation.yaml      # custom rules, level overrides, thresholds
+  on_failure: annotate            # block | annotate | warn | ignore
+  fail_level: error               # error | warning | info | never
+
+# Sections appear in this order. Every section takes `title` and `page_break`.
+sections:
+  - type: cover
+  - type: toc
+  - type: text
+    title: "Scope and method"
+    body: |
+      This report covers the threat model of {{ product.name }} as recorded in OWASP ThreatAtlas.
+
+      Risk is rated as likelihood × impact (1–5 each). Scores of 20 and above are critical,
+      12 and above high, 6 and above medium, and anything lower is low.
+  - type: executive_summary
+  - type: risk_matrix
+    residual: true
+  - type: product_info
+  - type: diagram
+    annotate_threats: true        # severity-coloured threat counts on elements
+    legend: true
+    element_table: true
+  - type: threat_table
+    title: "Threats"
+    group_by: diagram             # none | diagram | element | severity | category | status | framework
+    sort: [-severity, -risk_score, ref]
+    columns: [ref, threat, element, likelihood, impact, severity, status, mitigations]
+    details: false                # show descriptions and comments under each threat
+  - type: mitigation_table
+    group_by: status              # none | diagram | status | element
+    columns: [ref, mitigation, element, threat, status]
+  - type: accepted_risks
+  - type: validation_findings
+    min_level: warning            # error | warning | info
+  - type: appendix_catalog
+    include: [threats, mitigations]

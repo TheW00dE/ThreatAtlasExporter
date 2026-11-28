@@ -1,0 +1,7 @@
+{% extends "base.html.j2" %}
+{% block title %}{{ title }}{% endblock %}
+{% block main %}
+<h1>{{ title }}</h1>
+<p class="lead">{{ text }}</p>
+{% if back|default(true) %}<p><a href="/">Back to products</a></p>{% endif %}
+{% endblock %}

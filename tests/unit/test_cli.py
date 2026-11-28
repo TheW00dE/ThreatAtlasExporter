@@ -189,7 +189,7 @@ def test_auth_login_without_keyring(runner: CliRunner, api: respx.MockRouter) ->
     api.get("/auth/me").respond(json=load("me"))
     result = runner.invoke(app, ["auth", "login", "--token-stdin"], input="ta_new\n", env={"TAE_URL": BASE})
     assert result.exit_code == 3
-    assert "keyring" in result.output
+    assert "keyring" in result.output.lower()
 
 
 def test_server_text_is_not_rich_markup(runner: CliRunner, api: respx.MockRouter) -> None:

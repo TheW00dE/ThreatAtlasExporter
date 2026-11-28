@@ -1,0 +1,74 @@
+# The threat model of one product, as code.
+#
+#   tae import examples/models/payments-framework.yaml      # the framework first
+#   tae import examples/models/payments-threat-model.yaml --dry-run
+#   tae import examples/models/payments-threat-model.yaml
+#
+# Element positions are laid out automatically unless given; positions changed in the
+# ThreatAtlas editor are kept on re-import. Risk acceptances are requested here, but
+# approving them stays a step for the approver in ThreatAtlas.
+
+kind: threat-model
+
+product:
+  name: Payments API
+  description: Card payment processing for the web shop.
+  status: production
+  business_area: Payments
+  owner_name: Pat Owner
+  owner_email: pat.owner@example.com
+  reviewer: Security Architecture
+
+diagrams:
+  - name: Payment flow
+    description: Card authorisation from checkout to the acquirer.
+    elements:
+      - { id: shopper, type: external, label: Shopper }
+      - { id: dmz, type: boundary, label: DMZ }
+      - { id: checkout, type: process, label: Checkout API, boundary: dmz }
+      - { id: internal, type: boundary, label: Internal network }
+      - { id: payments, type: process, label: Payment service, boundary: internal }
+      - { id: vault, type: datastore, label: Token vault, boundary: internal }
+      - { id: acquirer, type: external, label: Acquirer }
+    flows:
+      - { id: f-checkout, from: shopper, to: checkout, label: Card details (HTTPS) }
+      - { id: f-authorise, from: checkout, to: payments, label: Payment request }
+      - { id: f-tokenise, from: payments, to: vault, label: Tokenise PAN }
+      - { id: f-acquire, from: payments, to: acquirer, label: Authorisation (ISO 8583) }
+
+    models:
+      - framework: Card Payments Threat Model
+        name: Payments review 2026
+        threats:
+          - threat: Card testing attack
+            element: f-checkout
+            likelihood: 4
+            impact: 3
+            mitigations:
+              - { mitigation: Velocity limits, status: implemented }
+              - { mitigation: Bot detection, status: proposed }
+          - threat: Cardholder data exposure in logs
+            element: payments
+            likelihood: 2
+            impact: 5
+            status: mitigated
+            residual: { likelihood: 1, impact: 5, comments: Scrubbing verified in log pipeline tests }
+            mitigations:
+              - { mitigation: Log scrubbing, status: verified }
+              - { mitigation: PAN tokenisation, status: implemented }
+          - threat: Acquirer outage
+            element: f-acquire
+            likelihood: 2
+            impact: 3
+            status: accepted
+            acceptance:
+              justification: Outages are short and failover is planned for Q2.
+              review_date: 2027-06-30
+      - framework: STRIDE
+        threats:
+          - threat: SQL injection
+            element: vault
+            likelihood: 2
+            impact: 5
+            mitigations:
+              - { mitigation: Parameterised queries, status: implemented }

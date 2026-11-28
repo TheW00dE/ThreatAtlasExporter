@@ -1,0 +1,16 @@
+{% if not s.data.rows %}
+<p class="muted">No risks have been accepted.</p>
+{% endif %}
+{% for r in s.data.rows %}
+<div class="risk-card{% if r.overdue %} overdue{% endif %}">
+  <div class="risk-head"><span class="ref">{{ r.threat.ref }}</span> <strong>{{ r.threat.name }}</strong> · {{ r.threat.element_label }} ({{ r.threat.diagram.name }}) {{ m.sev(r.threat.severity) }}</div>
+  <table class="facts compact">
+    <tr><th>{{ t("field.justification") }}</th><td>{{ m.opt(r.justification) }}</td></tr>
+    <tr><th>{{ t("field.approver") }}</th><td>{{ m.opt(r.approver) }}</td></tr>
+    <tr><th>{{ t("field.accepted") }}</th><td>{{ r.accepted_at }}</td></tr>
+    <tr><th>{{ t("field.review_due") }}</th><td>{{ r.review_date }}{% if r.overdue %} <span class="bad">{{ t("text.overdue") }}</span>{% endif %}</td></tr>
+    <tr><th>{{ t("field.review_status") }}</th><td>{{ m.status(r.review_status) }}{% if r.review_note %} — {{ r.review_note }}{% endif %}</td></tr>
+    {% if r.threat.residual_score is not none %}<tr><th>{{ t("field.residual_risk") }}</th><td>{{ m.sev(r.threat.residual_severity) }} ({{ r.threat.residual_score }})</td></tr>{% endif %}
+  </table>
+</div>
+{% endfor %}

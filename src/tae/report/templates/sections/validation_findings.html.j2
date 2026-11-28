@@ -1,0 +1,21 @@
+{% set d = s.data %}
+<p class="{{ 'bad' if d.failed else 'ok' }}">
+  Validation {{ "failed" if d.failed else "passed" }} (fails on {{ d.fail_level }} or worse):
+  {{ d.counts.error }} error(s), {{ d.counts.warning }} warning(s), {{ d.counts.info }} informational.
+  {% if d.hidden %}{{ d.hidden }} finding(s) below {{ d.min_level }} are not listed.{% endif %}
+</p>
+{% if d.findings %}
+<table class="data findings">
+  <thead><tr>{% for c in ("level", "rule", "subject", "finding") %}<th>{{ t("column." ~ c) }}</th>{% endfor %}</tr></thead>
+  <tbody>
+  {% for f in d.findings %}
+    <tr>
+      <td><span class="lvl lvl-{{ f.level.value }}">{{ f.level.value }}</span></td>
+      <td class="nowrap">{{ f.rule_id }}<div class="muted small">{{ f.rule_title }}</div></td>
+      <td>{% if f.entity.ref %}<span class="ref">{{ f.entity.ref }}</span> {% endif %}{{ f.entity.label }}{% if f.entity.diagram_name and f.entity.kind != "diagram" %}<div class="muted small">{{ f.entity.diagram_name }}</div>{% endif %}</td>
+      <td>{{ f.message }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}

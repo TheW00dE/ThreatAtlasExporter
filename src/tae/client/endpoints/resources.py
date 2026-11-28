@@ -12,6 +12,10 @@ from tae.models.api import RequestModel
 class Users(Resource[api.User]):
     path = "/users"
     model = api.User
+    paginated = False  # upstream returns every user at once and ignores skip/limit
+
+    def get(self, item_id: int) -> api.User:
+        raise NotImplementedError("ThreatAtlas has no endpoint for reading a single user")
 
     def me(self) -> api.User:
         return parse(api.User, self.http.get_json("/auth/me"), "GET /auth/me")
@@ -29,8 +33,21 @@ class Products(Resource[api.Product]):
         data = self.http.post_json(path, api.ProductDuplicate(name=name).payload())
         return parse(api.Product, data, f"POST {path}")
 
-    def security_status(self, product_id: int) -> dict[str, Any]:
-        data = self.http.get_json(f"{self.path}/{product_id}/security-status")
+    def security_status(
+        self,
+        product_id: int,
+        *,
+        fail_on_critical: bool = False,
+        fail_on_unmitigated_high: bool = False,
+        min_mitigation_ratio: float | None = None,
+    ) -> dict[str, Any]:
+        """ThreatAtlas's own pass/fail check. Without thresholds it always passes."""
+        params = {
+            "fail_on_critical": "true" if fail_on_critical else None,
+            "fail_on_unmitigated_high": "true" if fail_on_unmitigated_high else None,
+            "min_mitigation_ratio": min_mitigation_ratio,
+        }
+        data = self.http.get_json(f"{self.path}/{product_id}/security-status", params)
         return data if isinstance(data, dict) else {}
 
 

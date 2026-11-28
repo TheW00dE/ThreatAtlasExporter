@@ -41,7 +41,18 @@ LABEL org.opencontainers.image.title="threatatlas-exporter" \
       org.opencontainers.image.description="Pull, validate and report on OWASP ThreatAtlas threat models" \
       org.opencontainers.image.licenses="GPL-3.0-or-later"
 
-# Phase 4 (PDF reports) adds the WeasyPrint system libraries and fonts here.
+# WeasyPrint needs Pango (text layout), HarfBuzz subsetting (font embedding) and fonts.
+# Apt uses HTTPS sources, so builds behind a TLS-intercepting proxy can pass its CA as
+# the same optional build secret.
+RUN --mount=type=secret,id=ca,required=false \
+    set -eu; \
+    sed -i 's|http://deb.debian.org|https://deb.debian.org|g' /etc/apt/sources.list.d/debian.sources; \
+    CA_OPT=""; if [ -s /run/secrets/ca ]; then CA_OPT="-o Acquire::https::CAInfo=/run/secrets/ca"; fi; \
+    apt-get $CA_OPT update; \
+    apt-get $CA_OPT install -y --no-install-recommends \
+        libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 fontconfig fonts-dejavu-core; \
+    rm -rf /var/lib/apt/lists/*; \
+    fc-cache -f
 
 RUN groupadd --system --gid 10001 tae \
  && useradd --system --uid 10001 --gid tae --home-dir /work --shell /usr/sbin/nologin tae \
@@ -56,6 +67,7 @@ ENV PATH=/opt/tae/bin:$PATH \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     XDG_CONFIG_HOME=/config \
+    XDG_CACHE_HOME=/tmp/.cache \
     HOME=/work
 
 USER 10001:10001

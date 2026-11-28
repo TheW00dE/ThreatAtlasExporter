@@ -360,6 +360,12 @@ class DiagramThreatUpdate(RequestModel):
 
 
 class DiagramMitigation(ApiModel):
+    """A catalog mitigation applied to a diagram element.
+
+    ``threat_id`` is the ID of the *diagram threat* it addresses (not the catalog
+    threat), or ``None`` for an element-level mitigation.
+    """
+
     id: int
     diagram_id: int
     model_id: int

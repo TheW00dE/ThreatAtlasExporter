@@ -39,3 +39,35 @@ def api() -> Iterator[respx.MockRouter]:
 def no_sleep() -> list[float]:
     """Collects retry delays instead of sleeping."""
     return []
+
+
+def raw_snapshot() -> dict[str, Any]:
+    """Fresh, mutable snapshot data built from the API fixtures."""
+    return {
+        "meta": {"source_url": BASE, "pulled_at": "2026-11-20T09:00:00Z", "pulled_by": "analyst"},
+        "product": load("products")[0],
+        "frameworks": load("frameworks"),
+        "diagrams": load("diagrams"),
+        "models": load("models"),
+        "diagram_threats": load("diagram_threats"),
+        "diagram_mitigations": load("diagram_mitigations"),
+    }
+
+
+def make_snapshot(raw: dict[str, Any] | None = None):  # type: ignore[no-untyped-def]
+    from tae.snapshot import Snapshot
+
+    return Snapshot.model_validate(raw if raw is not None else raw_snapshot())
+
+
+def make_view(raw: dict[str, Any] | None = None):  # type: ignore[no-untyped-def]
+    from tae.snapshot import build_view
+
+    return build_view(make_snapshot(raw))
+
+
+@pytest.fixture
+def snapshot_file(tmp_path: Path) -> Path:
+    path = tmp_path / "payments.snapshot.json"
+    make_snapshot().save(path)
+    return path

@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+{% block head %}{% endblock %}
+<title>{% block title %}ThreatAtlas Reports{% endblock %}</title>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="/">ThreatAtlas Reports</a>
+  <span class="poc">proof of concept</span>
+  {% if user %}
+  <div class="who">
+    <span title="{{ url }}">{{ user.full_name or user.username }} · {{ url|replace("https://", "")|replace("http://", "") }}</span>
+    <form method="post" action="/open-folder" class="inline">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <input type="hidden" name="back" value="{{ back_path|default('/') }}">
+      <button class="link" type="submit">Open reports folder</button>
+    </form>
+    <form method="post" action="/signout" class="inline">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <button class="link" type="submit" title="Signs you out and forgets a remembered token">Sign out</button>
+    </form>
+  </div>
+  {% endif %}
+</header>
+<main>
+{% block main %}{% endblock %}
+</main>
+<footer>ThreatAtlasExporter {{ version }} · PDF engine: {{ app.engine_label }} · reports saved in {{ app.store.root }}</footer>
+</body>
+</html>

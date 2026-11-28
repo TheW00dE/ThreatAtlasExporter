@@ -1,0 +1,53 @@
+# Example validation config: custom rules, level overrides and thresholds.
+# Use with: tae validate SNAPSHOT --rules examples/rules/custom-rules.yaml
+
+disable:
+  - CMP004            # elements without threats: too noisy for early-stage products
+
+levels:
+  CON002: error       # "mitigated" must really be backed by an implemented mitigation
+
+params:
+  review_warning_days: 45
+  required_product_fields: [description, owner_name, owner_email, reviewer, business_area]
+
+rules:
+  - id: CUSTOM-ACCEPT-HIGH
+    title: High and critical risks need a decision
+    level: error
+    applies_to: diagram_threat
+    when: { severity: [high, critical] }
+    require: { status: [mitigated, accepted] }
+    message: "{ref} {name} on {element_label} is {severity} but still {status}"
+
+  - id: CUSTOM-ACCEPT-HORIZON
+    title: Risk acceptance longer than a year
+    level: warning
+    applies_to: diagram_threat
+    when: { status: accepted }
+    require: { acceptance_review_date: { lte: "today+365" } }
+    message: "{ref} {name}: acceptance runs until {acceptance_review_date}, more than a year away"
+
+  - id: CUSTOM-JUSTIFICATION-LENGTH
+    title: Acceptance justification too short
+    level: warning
+    applies_to: diagram_threat
+    when: { status: accepted }
+    require: { acceptance_justification: { matches: ".{40,}" } }
+    message: "{ref} {name}: the acceptance justification is too short to be meaningful"
+
+  - id: CUSTOM-PROD-COMPLETED
+    title: Production products need completed threat models
+    level: warning
+    applies_to: model
+    when: { status: in_progress }
+    require: { open_threat_count: 0 }
+    message: "Threat model {name} on {diagram} still has {open_threat_count} open threat(s)"
+
+  - id: CUSTOM-FLOWS-NAMED
+    title: Data flows should be labelled
+    level: info
+    applies_to: element
+    when: { kind: edge }
+    require: { has_label: true }
+    message: "Data flow {id} on {diagram} has no descriptive label"

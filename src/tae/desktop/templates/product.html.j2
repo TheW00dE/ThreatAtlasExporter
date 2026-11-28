@@ -1,0 +1,51 @@
+{% extends "base.html.j2" %}
+{% set back_path = "/products/" ~ product.id %}
+{% block title %}{{ product.name }} · ThreatAtlas Reports{% endblock %}
+{% block main %}
+<p class="crumbs"><a href="/">Products</a> /</p>
+<h1>{{ product.name }}</h1>
+{% if product.description %}<p class="lead">{{ product.description }}</p>{% endif %}
+
+<section class="card">
+  <h2>Generate a report</h2>
+  {% if active %}
+  <p class="alert info">A report is being generated for this product. <a href="/products/{{ product.id }}/runs/{{ active }}">Follow its progress</a>.</p>
+  {% else %}
+  <form method="post" action="/products/{{ product.id }}/generate" class="stack">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <fieldset>
+      <legend>Report type</legend>
+      {% for p in presets %}
+      <label class="choice"><input type="radio" name="preset" value="{{ p.id }}"{% if loop.first %} checked{% endif %}>
+        <span><strong>{{ p.label }}</strong><br><span class="muted">{{ p.description }}</span></span></label>
+      {% endfor %}
+    </fieldset>
+    <button type="submit" class="primary">Generate report</button>
+    <p class="hint">This pulls the current data from ThreatAtlas, validates it and creates the PDF. It usually takes a few seconds.</p>
+  </form>
+  {% endif %}
+</section>
+
+<section>
+  <h2>Saved reports</h2>
+  {% if not runs %}
+  <p class="empty">No reports yet.</p>
+  {% else %}
+  <table class="list">
+    <thead><tr><th>Created</th><th>Report type</th><th>By</th><th>Validation</th><th>Result</th><th></th></tr></thead>
+    <tbody>
+    {% for r in runs %}
+      <tr>
+        <td><a href="/products/{{ product.id }}/runs/{{ r.run_id }}">{{ r.started_at|when }}</a></td>
+        <td>{{ r.preset_label }}</td>
+        <td>{{ r.user or "—" }}</td>
+        <td>{% include "_verdict.html.j2" %}</td>
+        <td><span class="status st-{{ r.status }}">{{ r.status }}</span></td>
+        <td class="actions">{% if "report.pdf" in r.files %}<a href="/products/{{ product.id }}/runs/{{ r.run_id }}/report.pdf" target="_blank" rel="noopener">Open</a> · <a href="/products/{{ product.id }}/runs/{{ r.run_id }}/report.pdf?download=1">Download</a>{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</section>
+{% endblock %}
