@@ -23,6 +23,8 @@ is a local web page in your browser; start it with `desktop\start-windows.cmd` o
 On Windows, PDFs are made with Microsoft Edge, so nothing extra needs installing. The main
 tool can do the same: `tae report build --pdf-engine browser`.
 
+Full manual (all functions, short form): [docs/MANUAL.md](docs/MANUAL.md).
+
 ## Quick start
 
 ```sh
@@ -124,8 +126,8 @@ tae validate    [SNAPSHOT | --product ID|NAME] [--rules FILE] [--risk-scale FILE
 tae rules       [--rules FILE]
 tae report      build [SNAPSHOT | --product ID|NAME] [-d DEFINITION] [-f PDF] [--html FILE]
                       [--rules FILE] [--on-failure block|annotate|warn|ignore] [--findings-file FILE]
-                      [--pdf-engine auto|weasyprint|browser]
-                init [FILE] | check FILE | schema [-f FILE]
+                      [--theme FILE] [--pdf-engine auto|weasyprint|browser]
+                init [FILE] [--theme] | check FILE | schema [--theme] [-f FILE] | labels [--theme FILE]
 tae desktop     [--reports-dir DIR] [--pdf-engine ...] [--port N] [--no-browser]
 tae auth        login | status | logout
 tae config      show | path
